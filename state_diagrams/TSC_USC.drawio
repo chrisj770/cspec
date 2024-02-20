@@ -1,0 +1,659 @@
+<mxfile host="app.diagrams.net" modified="2024-02-13T20:46:26.426Z" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:104.0) Gecko/20100101 Firefox/104.0" etag="TxYdGM8bX8Bqu3pLE9Ja" version="23.1.4" type="device">
+  <diagram name="Page-1" id="OSj4ofIRMlWWjkcrT2lz">
+    <mxGraphModel dx="1304" dy="678" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="GGpFgfvuhYsrflitjHx5-262" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-263">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1930" y="700" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-263" value="&lt;u&gt;User State SC&lt;/u&gt; (USSC) initialized by Bootstrap Program with addresses of all USCs" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1870" y="580" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-264" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-266" target="GGpFgfvuhYsrflitjHx5-271">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-265" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive registration&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;request from&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;Worker/Requester)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-264">
+          <mxGeometry x="-0.2804" y="1" relative="1" as="geometry">
+            <mxPoint y="5" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-266" value="Await interaction" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1870" y="700" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-267" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-271" target="GGpFgfvuhYsrflitjHx5-273">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="2091" y="750" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-268" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(User already&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;registered)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-267">
+          <mxGeometry x="-0.7303" y="1" relative="1" as="geometry">
+            <mxPoint x="20" y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-269" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-271" target="GGpFgfvuhYsrflitjHx5-278">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-270" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(User not registered)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-269">
+          <mxGeometry x="-0.1853" y="2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-271" value="Verify whether user is already registered under a USC" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1870" y="820" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-272" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-273" target="GGpFgfvuhYsrflitjHx5-266">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-273" value="Send registration denial message" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2030" y="710" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-274" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-278" target="GGpFgfvuhYsrflitjHx5-273">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-275" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(USC not &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;available)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-274">
+          <mxGeometry x="-0.7065" y="2" relative="1" as="geometry">
+            <mxPoint x="4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-276" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0.002;entryY=0.88;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-278" target="GGpFgfvuhYsrflitjHx5-282">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-277" value="&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(USC available)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-276">
+          <mxGeometry x="0.0212" y="1" relative="1" as="geometry">
+            <mxPoint x="-42" y="-2" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-278" value="&lt;div&gt;Verify whether an unregistered USC&lt;/div&gt;&lt;div&gt;is available&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1870" y="920" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-279" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-280" target="GGpFgfvuhYsrflitjHx5-266">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="2230" y="680" />
+              <mxPoint x="1960" y="680" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-280" value="Send key-pair and pseudonym" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2170" y="710" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-281" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-282">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="2230" y="899.9999999999999" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-282" value="Generate key-pair and pseudonym, invoke methods of USC to store information and reputation values" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2170" y="860" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-283" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" target="GGpFgfvuhYsrflitjHx5-280">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="2230" y="839.9999999999999" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-284" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-285" target="GGpFgfvuhYsrflitjHx5-288">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-285" value="&lt;div&gt;&lt;u&gt;USC&lt;/u&gt; initialized by Bootstrap Program with address of USSC&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2550" y="580" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-420" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-288" target="GGpFgfvuhYsrflitjHx5-290">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-421" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;registration&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;request &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;from USSC)&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-420">
+          <mxGeometry x="-0.6755" y="5" relative="1" as="geometry">
+            <mxPoint x="8" y="8" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-423" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-288" target="GGpFgfvuhYsrflitjHx5-422">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-424" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;update&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;request &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;from USSC)&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-423">
+          <mxGeometry x="-0.8154" y="1" relative="1" as="geometry">
+            <mxPoint x="-14" y="17" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-288" value="Await interaction" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2550" y="700" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-419" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-290" target="GGpFgfvuhYsrflitjHx5-292">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-290" value="Store information received from USSC" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2710" y="790" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-291" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-292" target="GGpFgfvuhYsrflitjHx5-288">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-292" value="Acknowledge registration" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2710" y="710" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-293" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-294" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-294" value="&lt;u&gt;TSC&lt;/u&gt; initialized by Requester with state=&quot;&lt;i&gt;Pending&lt;/i&gt;&quot;, updated to &quot;&lt;i&gt;Available&lt;/i&gt;&quot; when recorded on-chain" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="580" width="120" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-295" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-307" target="GGpFgfvuhYsrflitjHx5-312">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-296" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive confirm&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;request from&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;potential Worker)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-295">
+          <mxGeometry x="-0.4458" y="-1" relative="1" as="geometry">
+            <mxPoint x="11" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-297" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.25;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-307" target="GGpFgfvuhYsrflitjHx5-328">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-298" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive data&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;submission from &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;confirmed&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;Worker)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-297">
+          <mxGeometry x="-0.4712" y="1" relative="1" as="geometry">
+            <mxPoint x="-7" y="3" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-299" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-307" target="GGpFgfvuhYsrflitjHx5-346">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-300" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;state check &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;message&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;from TSC-&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;state)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-299">
+          <mxGeometry x="-0.7903" relative="1" as="geometry">
+            <mxPoint x="10" y="48" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-301" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-307" target="GGpFgfvuhYsrflitjHx5-351">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1289.9565217391305" y="1070" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-302" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;weight&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;broadcast&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;from&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;Requester)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-301">
+          <mxGeometry x="-0.3915" y="-1" relative="1" as="geometry">
+            <mxPoint x="-6" y="17" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-303" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-307" target="GGpFgfvuhYsrflitjHx5-363">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1260" y="1160" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-304" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;hash&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;request&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;from&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;Requester)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-303">
+          <mxGeometry x="-0.3762" y="-1" relative="1" as="geometry">
+            <mxPoint y="-119" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-414" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-307" target="GGpFgfvuhYsrflitjHx5-412">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-418" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;other&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;message)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-414">
+          <mxGeometry x="-0.5243" relative="1" as="geometry">
+            <mxPoint y="-7" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-307" value="Await interaction" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1260" y="740" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-308" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-312" target="GGpFgfvuhYsrflitjHx5-329">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-309" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-308">
+          <mxGeometry x="-0.1103" y="-1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-310" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-312" target="GGpFgfvuhYsrflitjHx5-314">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-311" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;not satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-310">
+          <mxGeometry x="0.4176" y="-2" relative="1" as="geometry">
+            <mxPoint x="2" y="3" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-312" value="Verify that (1) task state=&quot;&lt;i&gt;Available&lt;/i&gt;&quot;, (2) Worker not already confirmed, (3) submission deadline not passed" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="810" width="120" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-313" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-314" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1510" y="770" />
+              <mxPoint x="1510" y="720" />
+              <mxPoint x="1350" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-314" value="Send confirm denial message" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1540" y="750" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-315" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-319" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1720" y="720" />
+              <mxPoint x="1350" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-316" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Required number of&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;participants not reached)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-315">
+          <mxGeometry x="-0.4276" y="1" relative="1" as="geometry">
+            <mxPoint y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-317" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-319" target="GGpFgfvuhYsrflitjHx5-323">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-318" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Required number &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;of participants &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;reached)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-317">
+          <mxGeometry x="-0.1487" y="1" relative="1" as="geometry">
+            <mxPoint x="1" y="22" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-319" value="Acknowledge confirmation" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1680" y="750" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-320" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-321" target="GGpFgfvuhYsrflitjHx5-319">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-321" value="Add PK to list of participating workers, lock deposit per rules of contract" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1680" y="940" width="120" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-322" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-323" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1420" y="670" />
+              <mxPoint x="1420" y="720" />
+              <mxPoint x="1350" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-323" value="Update state=&quot;&lt;i&gt;Unavailable&lt;/i&gt;&quot;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1570" y="650" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-324" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.25;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-328" target="GGpFgfvuhYsrflitjHx5-331">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1040" y="885" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-325" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;not satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-324">
+          <mxGeometry x="-0.5086" y="-1" relative="1" as="geometry">
+            <mxPoint x="-50" y="-44" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-326" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1.005;entryY=0.633;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-328" target="GGpFgfvuhYsrflitjHx5-333">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-327" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-326">
+          <mxGeometry x="-0.0269" y="1" relative="1" as="geometry">
+            <mxPoint y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-328" value="Verify that (1) task state=&quot;Unavailable&quot;, (2) user in participating list, (3) submission deadline not passed" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="820" width="120" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-329" value="Verify worker qualification via &quot;checkQ&quot;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="950" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-330" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-331" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1130" y="770" />
+              <mxPoint x="1130" y="720" />
+              <mxPoint x="1290" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-331" value="Send submission denial message" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="750" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-332" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-333" target="GGpFgfvuhYsrflitjHx5-338">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-333" value="Persist data hash locally" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="890" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-334" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-338" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-335" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Required number of &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;submissions not reached)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-334">
+          <mxGeometry x="-0.6287" y="-1" relative="1" as="geometry">
+            <mxPoint x="44" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-336" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-338" target="GGpFgfvuhYsrflitjHx5-340">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-337" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Required number &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;of submissions&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;reached)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-336">
+          <mxGeometry x="-0.5633" y="-3" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-338" value="&lt;div&gt;Acknowledge data submission, issue refund&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="750" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-339" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-340" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1190" y="670" />
+              <mxPoint x="1190" y="720" />
+              <mxPoint x="1290" y="720" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-340" value="Update state=&quot;&lt;i&gt;QEvaluating&quot;&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="970" y="650" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-341" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=-0.001;entryY=0.79;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-329" target="GGpFgfvuhYsrflitjHx5-321">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-342" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Worker qualified)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-341">
+          <mxGeometry x="-0.4992" y="-2" relative="1" as="geometry">
+            <mxPoint x="23" y="-3" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-343" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-329" target="GGpFgfvuhYsrflitjHx5-314">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-344" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Worker not &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;qualified)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-343">
+          <mxGeometry x="-0.6758" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-345" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-346" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="970" />
+              <mxPoint x="800" y="630" />
+              <mxPoint x="1220" y="630" />
+              <mxPoint x="1220" y="700" />
+              <mxPoint x="1290" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-346" value="&lt;div&gt;Send message with current state&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="950" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-347" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-351" target="GGpFgfvuhYsrflitjHx5-353">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-348" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-347">
+          <mxGeometry x="-0.1867" relative="1" as="geometry">
+            <mxPoint x="-1" y="-18" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-349" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.25;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-351" target="GGpFgfvuhYsrflitjHx5-355">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="980" y="1050" />
+              <mxPoint x="980" y="1020" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-350" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;not satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-349">
+          <mxGeometry x="-0.2511" y="-1" relative="1" as="geometry">
+            <mxPoint y="-2" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-351" value="&lt;div&gt;Verify that (1) task state=&quot;&lt;i&gt;QEvaluating&quot;&lt;/i&gt;,&lt;/div&gt;&lt;div&gt;(2) weight data NOT already persisted from broadcast, (3) no Worker has submitted results, (4) verification deadline not passed&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="1010" width="120" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-352" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-353" target="GGpFgfvuhYsrflitjHx5-357">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-353" value="Persist weight data locally" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="1060" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-354" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-355" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="1020" />
+              <mxPoint x="800" y="630" />
+              <mxPoint x="1220" y="630" />
+              <mxPoint x="1220" y="700" />
+              <mxPoint x="1290" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-355" value="Send broadcast denial message" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="1000" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-356" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-357" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="1140" />
+              <mxPoint x="800" y="630" />
+              <mxPoint x="1220" y="630" />
+              <mxPoint x="1220" y="700" />
+              <mxPoint x="1290" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-357" value="Acknowledge broadcast" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="1120" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-369" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-358" target="GGpFgfvuhYsrflitjHx5-368">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-371" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-369">
+          <mxGeometry x="-0.31" y="-1" relative="1" as="geometry">
+            <mxPoint x="1" y="3" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-379" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-358" target="GGpFgfvuhYsrflitjHx5-374">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-381" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;not satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-379">
+          <mxGeometry x="-0.087" y="2" relative="1" as="geometry">
+            <mxPoint y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-358" value="&lt;div&gt;Verify that (1) task state=&quot;&lt;i&gt;QEvaluating&quot;&lt;/i&gt;, (2) weight data IS already persisted from broadcast, (3) verification deadline not passed&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="1030" width="120" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-359" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=-0.005;exitY=0.372;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitPerimeter=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-363" target="GGpFgfvuhYsrflitjHx5-365">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-360" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;not satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-359">
+          <mxGeometry x="-0.0055" y="-1" relative="1" as="geometry">
+            <mxPoint x="-1" y="-1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-361" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-363" target="GGpFgfvuhYsrflitjHx5-367">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-362" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Conditions&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;satisfied)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-361">
+          <mxGeometry x="0.0451" y="3" relative="1" as="geometry">
+            <mxPoint x="3" y="2" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-363" value="&lt;div&gt;Verify that (1) task state=&quot;&lt;i&gt;QEvaluating&quot;&lt;/i&gt;,&lt;/div&gt;&lt;div&gt;(2) weight data NOT already persisted from broadcast, (3) no Worker has submitted results, (4) verification deadline not passed&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="1170" width="120" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-364" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-365" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="1200" />
+              <mxPoint x="800" y="630" />
+              <mxPoint x="1220" y="630" />
+              <mxPoint x="1220" y="700" />
+              <mxPoint x="1290" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-365" value="Send hash request denial message" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="1180" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-366" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-367" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="1260" />
+              <mxPoint x="800" y="630" />
+              <mxPoint x="1220" y="630" />
+              <mxPoint x="1220" y="700" />
+              <mxPoint x="1290" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-367" value="Send message with Worker data hashes" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="840" y="1240" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-380" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-368" target="GGpFgfvuhYsrflitjHx5-374">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-368" value="Verify whether worker has already submitted results" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="1180" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-377" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-374" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1640" y="1030" />
+              <mxPoint x="1840" y="1030" />
+              <mxPoint x="1840" y="630" />
+              <mxPoint x="1400" y="630" />
+              <mxPoint x="1400" y="700" />
+              <mxPoint x="1350" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-374" value="Send result denial message" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1580" y="1065" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-382" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Worker already &lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;submitted)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="1">
+          <mxGeometry x="1569.9962962962966" y="1190.8100000000002" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-383" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.617;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-368" target="GGpFgfvuhYsrflitjHx5-386">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1669.52" y="1215.85" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-384" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Worker has not submitted)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-383">
+          <mxGeometry x="-0.1309" y="1" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-391" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-385" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1780" y="1030" />
+              <mxPoint x="1840" y="1030" />
+              <mxPoint x="1840" y="630" />
+              <mxPoint x="1400" y="630" />
+              <mxPoint x="1400" y="700" />
+              <mxPoint x="1350" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-392" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Required number of&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;results not reached)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-391">
+          <mxGeometry x="-0.9654" y="-1" relative="1" as="geometry">
+            <mxPoint y="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-395" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-385" target="GGpFgfvuhYsrflitjHx5-399">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1840" y="1300.0000000000002" as="targetPoint" />
+            <Array as="points">
+              <mxPoint x="1880" y="1085" />
+              <mxPoint x="1880" y="1360" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-396" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Required&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;number&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;of results&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;&amp;nbsp;reached)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-395">
+          <mxGeometry x="-0.5093" y="3" relative="1" as="geometry">
+            <mxPoint y="13" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-385" value="Acknowledge verification results" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1720" y="1065" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-387" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-386" target="GGpFgfvuhYsrflitjHx5-385">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-386" value="Persist verification results" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1720" y="1200" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-402" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-398" target="GGpFgfvuhYsrflitjHx5-401">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-398" value="&lt;b&gt;Compute True Weights and Allocate Rewards&lt;/b&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1600" y="1320" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-400" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-399" target="GGpFgfvuhYsrflitjHx5-398">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-399" value="Update state=&quot;&lt;i&gt;Completed&lt;/i&gt;&quot;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1740" y="1340" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-408" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-401" target="GGpFgfvuhYsrflitjHx5-403">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-401" value="&lt;div&gt;&lt;b&gt;Recalculate User Reputations&lt;br&gt;&lt;/b&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1460" y="1320" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-415" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-403" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="800" y="1360" />
+              <mxPoint x="800" y="630" />
+              <mxPoint x="1220" y="630" />
+              <mxPoint x="1220" y="700" />
+              <mxPoint x="1290" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-417" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Acknow-&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;ledgement&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-415">
+          <mxGeometry x="-0.9532" y="2" relative="1" as="geometry">
+            <mxPoint x="2" y="-4" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-403" value="&lt;div&gt;Send message to USSC&lt;/div&gt;&lt;div&gt;with updated reputations&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1320" y="1320" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-404" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-403" target="GGpFgfvuhYsrflitjHx5-403">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1350" y="1420" />
+              <mxPoint x="1410" y="1420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-405" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Response other than&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;confirmation)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-404">
+          <mxGeometry x="0.1043" y="-1" relative="1" as="geometry">
+            <mxPoint x="-6" y="12" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-409" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0.159;entryY=-0.001;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-307" target="GGpFgfvuhYsrflitjHx5-358">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-410" value="&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;(Receive&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;verification&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;results from&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;confirmed&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;&lt;div style=&quot;font-size: 10px;&quot;&gt;&lt;font style=&quot;font-size: 10px;&quot;&gt;&lt;i&gt;Worker)&lt;br&gt;&lt;/i&gt;&lt;/font&gt;&lt;/div&gt;" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="GGpFgfvuhYsrflitjHx5-409">
+          <mxGeometry x="-0.5178" y="-1" relative="1" as="geometry">
+            <mxPoint x="-10" y="22" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-416" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-412" target="GGpFgfvuhYsrflitjHx5-307">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1240" y="1290" />
+              <mxPoint x="1240" y="1360" />
+              <mxPoint x="800" y="1360" />
+              <mxPoint x="800" y="630" />
+              <mxPoint x="1220" y="630" />
+              <mxPoint x="1220" y="700" />
+              <mxPoint x="1290" y="700" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-412" value="&lt;div&gt;Send error &lt;br&gt;&lt;/div&gt;&lt;div&gt;response message&lt;br&gt;&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1380" y="1260" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-426" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-422" target="GGpFgfvuhYsrflitjHx5-425">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-422" value="Update current data with new information received from USSC" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2390" y="790" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-427" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="GGpFgfvuhYsrflitjHx5-425" target="GGpFgfvuhYsrflitjHx5-288">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="GGpFgfvuhYsrflitjHx5-425" value="Acknowledge update" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="2390" y="710" width="120" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
