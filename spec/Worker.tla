@@ -15,7 +15,9 @@ WorkerTypeOK ==
          "QUERY_HASHES",  \* Request list of all hashes from TSC
          "QUERY_DATA",    \* Request all relevant sensory data from STORAGE
          "VERIFY",        \* Run verification process
-         "SUBMIT_EVAL"}]  \* Attmept to submit evaluation results to TSC      
+         "SUBMIT_EVAL"}]  \* Attmept to submit evaluation results to TSC    
+         
+WorkerStateConsistency == TRUE
          
 WorkerInit ==
     Workers = [w \in 1..NumWorkers |-> [
@@ -41,13 +43,19 @@ WorkerReceiveRegister(i) ==
             ![i].msgs = Tail(Workers[i].msgs), 
             ![i].state = "QUERY_TASKS"]
     /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
+    
+WorkerTerminating == /\ \A w \in 1..NumWorkers: Workers[w].state = "QUERY_TASKS"
+                     /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs>> 
+
+WorkerTermination == <>(\A w \in 1..NumWorkers: Workers[w].state = "QUERY_TASKS")
         
 WorkerNext == 
-    \E worker \in 1..NumWorkers : 
+    \/ \E worker \in 1..NumWorkers : 
         \/ WorkerSendRegister(worker)
         \/ WorkerReceiveRegister(worker)
-    
+    \/ WorkerTerminating
+        
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 22 16:13:47 CET 2024 by jungc
+\* Last modified Fri Feb 23 08:54:27 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

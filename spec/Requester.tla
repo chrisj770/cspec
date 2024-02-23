@@ -1,5 +1,7 @@
 ----------------------------- MODULE Requester -----------------------------
 EXTENDS Sequences, Common
+
+CONSTANT Tasks
         
 RequesterTypeOK == 
     /\ \A requester \in Requesters : [requester.state ->
@@ -18,13 +20,16 @@ RequesterInit ==
     Requesters = [r \in 1..NumRequesters |-> [
                     msgs |-> <<>>, 
                     state |-> "INIT",
-                    pubkey |-> ""]]
+                    pubkey |-> "",
+                    tasks |-> Tasks]]
                     
 RequesterSendRegister(i) == 
     /\ Requesters[i].state = "INIT"
     /\ Requesters' = [Requesters EXCEPT ![i].state = "REGISTER"]
     /\ USSC' = [USSC EXCEPT !.msgs = USSC.msgs \o 
-        <<[type |-> "REGISTER", userType |-> "REQUESTER", src |-> i]>>]
+        <<[type |-> "REGISTER", 
+          userType |-> "REQUESTER", 
+          src |-> i]>>]
     /\ UNCHANGED <<Workers, USCs, TSSC, TSCs>>
     
 RequesterReceiveRegister(i) == 
@@ -38,13 +43,41 @@ RequesterReceiveRegister(i) ==
             ![i].msgs = Tail(Requesters[i].msgs),
             ![i].state = "POST_TASKS"]
     /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs>>
+    
+RequesterSendPostTask(i) == 
+    /\ Requesters[i].state = "POST_TASKS"
+    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \o
+        <<[type |-> "POST_TASKS", 
+          pubkey |-> Requesters[i].pubkey, 
+          tasks |-> Requesters[i].tasks]>>]
+    /\ UNCHANGED <<Workers, Requesters, TSCs, USSC, USCs>>
+    
+RequesterReceivePostTask(i) == 
+    /\ Requesters[i].state = "POST_TASKS"
+    /\ Len(Requesters[i].msgs) > 0
+    /\ LET msg == Head(Requesters[i].msgs) IN 
+        /\ msg.src = "TSSC"
+        /\ msg.type = "ACK"
+        /\ Requesters' = [Requesters EXCEPT
+            ![i].tasks = <<>>,
+            ![i].state = "QUERY_TASKS",
+            ![i].msgs = Tail(Requesters[i].msgs)]
+    /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs>>
+    
+RequesterTerminating == /\ \A r \in 1..NumRequesters: Requesters[r].state = "QUERY_TASKS"
+                     /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs>> 
+
+RequesterTermination == <>(\A r \in 1..NumRequesters: Requesters[r].state = "QUERY_TASKS")
             
 RequesterNext == 
-    \E requester \in 1..NumRequesters : 
+    \/ \E requester \in 1..NumRequesters : 
         \/ RequesterSendRegister(requester)
         \/ RequesterReceiveRegister(requester)
+        \/ RequesterSendPostTask(requester)
+        \/ RequesterReceivePostTask(requester)
+    \/ RequesterTerminating
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 22 16:12:28 CET 2024 by jungc
+\* Last modified Fri Feb 23 10:06:34 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

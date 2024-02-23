@@ -1,21 +1,36 @@
 -------------------------------- MODULE TSSC --------------------------------
-EXTENDS Sequences, TSC, Common
+EXTENDS Sequences, TSC, USSC, Common
 
-TSSCTypeOK == TRUE
+TSSCTypeOK == TSSC.state \in {"INIT", "POST_TASKS", "WORKING"}
 
-TSSCInit == TSSC = [msgs |-> <<>>]
+TSSCInit == TSSC = [msgs |-> <<>>, 
+                    state |-> "INIT"]
         
-TSSCReceivePost(message) == TRUE
-TSSCReceiveQuery(message) == TRUE
-TSSCReceiveInvalid(message) == TRUE
+TSSCReceivePost(msg) == 
+    /\ \/ TSSC.state = "INIT"
+       \/ TSSC.state = "POST_TASKS"
+    /\ USSCGetUser(msg.pubkey, "REQUESTER")
+    /\ TSCs' = TSCs \o msg.tasks
+    /\ TSSC' = [TSSC EXCEPT !.state = "POST_TASKS", !.msgs = Tail(TSSC.msgs)]
+    /\ LET rid == CHOOSE key \in DOMAIN Requesters : Requesters[key].pubkey = msg.pubkey IN
+           Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \o 
+                         <<[type |-> "ACK", src |-> "TSSC"]>>]
+    /\ UNCHANGED <<Workers, USSC, USCs>>
+   
+TSSCReceiveQuery(msg) == TRUE
+TSSCReceiveInvalid(msg) == TRUE
     
-TSSCRecieve == 
+TSSCReceive == 
+    /\ Len(TSSC.msgs) > 0
     /\ LET message == Head(TSSC.msgs) IN
-        IF message.type = "POST_TASK" THEN TSSCReceivePost(message)
-        ELSE IF message.type = "QUERY_TASK" THEN TSSCReceiveQuery(message)
+        IF message.type = "POST_TASKS" THEN TSSCReceivePost(message)
+        ELSE IF message.type = "QUERY_TASKS" THEN TSSCReceiveQuery(message)
         ELSE TSSCReceiveInvalid(message)
+    
+TSSCNext == 
+    \/ TSSCReceive
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 22 16:17:08 CET 2024 by jungc
+\* Last modified Fri Feb 23 09:54:04 CET 2024 by jungc
 \* Created Thu Feb 22 09:13:46 CET 2024 by jungc

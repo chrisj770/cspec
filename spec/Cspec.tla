@@ -18,9 +18,11 @@ Init == /\ WorkerInit
 Next == \/ WorkerNext
         \/ RequesterNext
         \/ USSCNext
+        \/ TSSCNext
+        \/ TSCNext
 
 Spec == Init /\ [][Next]_vars
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 22 16:19:37 CET 2024 by jungc
+\* Last modified Fri Feb 23 10:04:11 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc
