@@ -21,6 +21,11 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Common.tla</locationURI>
 		</link>
 		<link>
+			<name>Cspec.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/Cspec.tla</locationURI>
+		</link>
+		<link>
 			<name>Requester.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Requester.tla</locationURI>
@@ -49,11 +54,6 @@
 			<name>Worker.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Worker.tla</locationURI>
-		</link>
-		<link>
-			<name>Cspec.tla</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Cspec.tla</locationURI>
 		</link>
 	</linkedResources>
 </projectDescription>

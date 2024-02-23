@@ -12,9 +12,10 @@ VARIABLES
     USSC,
     USCs,
     TSSC,
-    TSCs
+    TSCs, 
+    Time
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Feb 23 08:15:57 CET 2024 by jungc
+\* Last modified Fri Feb 23 12:29:56 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc
