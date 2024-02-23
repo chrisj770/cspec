@@ -53,7 +53,8 @@ SendQueryTasks(i) ==
     /\ Workers[i].state = "SEND_QUERY_TASKS"
     /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \o
         <<[type |-> "QUERY_TASKS", 
-          pubkey |-> Workers[i].pubkey]>>]
+          pubkey |-> Workers[i].pubkey,
+          owner |-> NULL]>>]
     /\ Workers' = [Workers EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Requesters, TSCs, USSC, USCs>>
     
@@ -90,5 +91,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Fri Feb 23 14:31:45 CET 2024 by jungc
+\* Last modified Fri Feb 23 16:06:18 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

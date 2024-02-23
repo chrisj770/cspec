@@ -16,6 +16,11 @@
 	</natures>
 	<linkedResources>
 		<link>
+			<name>Blockchain.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/Blockchain.tla</locationURI>
+		</link>
+		<link>
 			<name>Common.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Common.tla</locationURI>

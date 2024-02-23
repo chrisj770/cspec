@@ -62,12 +62,41 @@ ReceivePostTasks(i) ==
     /\ Len(Requesters[i].msgs) > 0
     /\ LET msg == Head(Requesters[i].msgs) IN 
         /\ msg.src = "TSSC"
-        /\ msg.type = "ACK"
-        /\ Requesters' = [Requesters EXCEPT
-            ![i].tasks = <<>>,
-            ![i].state = "SEND_QUERY_TASKS",
-            ![i].msgs = Tail(Requesters[i].msgs)]
+        /\ \/ /\ msg.type = "ACK"
+              /\ Requesters' = [Requesters EXCEPT
+                  ![i].tasks = <<>>,
+                  ![i].state = "SEND_QUERY_TASKS",
+                  ![i].msgs = Tail(Requesters[i].msgs)]
+           \/ /\ msg.type = "INVALID"
+              /\ Requesters' = [Requesters EXCEPT
+                  ![i].state = "TERMINATED",
+                  ![i].msgs = Tail(Requesters[i].msgs)] 
     /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs>>
+    
+SendQueryTasks(i) == 
+    /\ Requesters[i].state = "SEND_QUERY_TASKS"
+    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \o
+        <<[type |-> "QUERY_TASKS", 
+          pubkey |-> Requesters[i].pubkey, 
+          owner |-> Requesters[i].pubkey]>>]
+    /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
+    /\ UNCHANGED <<Workers, TSCs, USSC, USCs>>
+    
+ReceiveQueryTasks(i) == 
+    /\ Requesters[i].state = "RECV_QUERY_TASKS"
+    /\ Len(Requesters[i].msgs) > 0
+    /\ LET msg == Head(Requesters[i].msgs) IN 
+        /\ msg.src = "TSSC"
+        /\ \/ /\ msg.type = "INVALID"
+              /\ Requesters' = [Requesters EXCEPT ![i].msgs = Tail(Requesters[i].msgs),
+                                                  ![i].state = "SEND_QUERY_TASKS"]
+           \/ /\ msg.type = "TASKS"
+              /\ \/ /\ Len(msg.tasks) > 0
+                    /\ TRUE \* TODO: Check whether all matching tasks are "Unavailable"
+                 \/ /\ Len(msg.tasks) = 0
+                    /\ Requesters' = [Requesters EXCEPT ![i].msgs = Tail(Requesters[i].msgs),
+                                                        ![i].state = "TERMINATED"]
+    /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
     
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
@@ -86,5 +115,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Feb 23 14:31:16 CET 2024 by jungc
+\* Last modified Fri Feb 23 16:16:18 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

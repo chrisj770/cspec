@@ -3,8 +3,6 @@ EXTENDS Sequences, USC, TLC, Common
 
 CONSTANT RegistrationDeadline
 
-VARIABLE NextUserId
-
 USSCTypeOK == TRUE 
 
 USSCInit == 
@@ -30,8 +28,6 @@ USSCReceiveRegister(msg) == \E usc \in 1..NumUSCs :
             
 USSCGetUser(pubkey, userType) == 
     \E usc \in 1..NumUSCs : USCIsRegistered(usc, pubkey, userType)
-
-\* USSCReceiveInvalid(message) == TRUE
     
 USSCReceive == 
     /\ Len(USSC.msgs) > 0
@@ -39,9 +35,10 @@ USSCReceive ==
           USSCReceiveRegister(message)
     /\ USSC' = [USSC EXCEPT !.msgs = Tail(USSC.msgs)]
         
-USSCNext == USSCReceive
+USSCNext == 
+    \/ USSCReceive
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Feb 23 14:39:53 CET 2024 by jungc
+\* Last modified Fri Feb 23 15:51:04 CET 2024 by jungc
 \* Created Thu Feb 22 10:07:57 CET 2024 by jungc
