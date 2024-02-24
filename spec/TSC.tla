@@ -25,9 +25,9 @@ AddFields(struct, id, owner) ==
 TSCPostTasks(tasks, owner) == 
     LET addTSCs == {AddFields(s, i, owner) : 
                     s \in tasks, 
-                    i \in Cardinality(TSCs)..Cardinality(TSCs)+Cardinality(tasks)}    
+                    i \in Cardinality(TSCs)..(Cardinality(TSCs)+Cardinality(tasks)-1)}    
     IN /\ TSCs' = TSCs \union addTSCs
-       /\ NextPubkey' = NextPubkey + Cardinality(tasks)
+       /\ NextPubkey' = NextPubkey + Cardinality(tasks) 
     
 TSCSendResponse(pubkey, message) == 
     \/ /\ USSCCheckUser(pubkey, "REQUESTER")
@@ -39,17 +39,17 @@ TSCSendResponse(pubkey, message) ==
             /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
        /\ UNCHANGED <<Requesters>>
 
-TSCConfirmTask_Success(msg, tsc) == 
+TSCConfirmTask_CanParticipate(msg, tsc) == 
     /\ Len(tsc.participants) < tsc.numParticipants
-    /\ LET user == USSCGetUser(msg.pubkey, "WORKER") IN
-        /\ tsc.checkQ[user.info.reputation]
-        /\ TSCs' = {IF t.taskId = tsc.taskId
-                    THEN [t EXCEPT !.msgs = t.msgs \ {msg}, 
-                                   !.participants = tsc.participants \o <<user.info.pubkey>>,
-                                   !.state = IF Len(tsc.participants) + 1 = tsc.numParticipants
-                                             THEN "Unavailable" ELSE "Available"]
-                    ELSE t : t \in TSCs}
-    /\ TSCSendResponse(msg.pubkey, [type |-> "CONFIRM_SUCCESS", src |-> tsc.pubkey])
+    /\ tsc.checkQ[USSCGetUser(msg.pubkey, "WORKER").info.reputation]
+    
+TSCConfirmTask_AddParticipant(msg, tsc) == 
+    /\ TSCs' = {IF t.taskId = tsc.taskId
+                THEN [t EXCEPT !.msgs = t.msgs \ {msg}, 
+                               !.participants = tsc.participants \o <<USSCGetUser(msg.pubkey, "WORKER").info.pubkey>>,
+                               !.state = IF Len(tsc.participants) + 1 = tsc.numParticipants
+                                         THEN "Unavailable" ELSE "Available"]
+                ELSE t : t \in TSCs}
               
 TSCConfirmTask == 
     /\ \E t \in TSCs : \E msg \in t.msgs : msg.type = "CONFIRM_TASK"
@@ -57,20 +57,22 @@ TSCConfirmTask ==
         /\ LET msg == CHOOSE m \in tsc.msgs : m.type = "CONFIRM_TASK" IN 
             /\ USSCCheckUser(msg.pubkey, "WORKER")
             /\ \/ /\ \/ /\ tsc.state \in {"Pending", "Unavailable", "QEvaluating"}
-                        /\ TSCSendResponse(msg.pubkey, [type |-> "INVALID", src |-> tsc.pubkey])
+                        /\ TSCSendResponse(msg.pubkey, [type |-> "INVALID", pubkey |-> tsc.pubkey])
                      \/ /\ tsc.state = "Canceled"
-                        /\ TSCSendResponse(msg.pubkey, [type |-> "CANCELED", src |-> tsc.pubkey])
+                        /\ TSCSendResponse(msg.pubkey, [type |-> "CANCELED", pubkey |-> tsc.pubkey])
                      \/ /\ tsc.state = "Completed"
-                        /\ TSCSendResponse(msg.pubkey, [type |-> "COMPLETED", src |-> tsc.pubkey])
+                        /\ TSCSendResponse(msg.pubkey, [type |-> "COMPLETED", pubkey |-> tsc.pubkey])
                   /\ TSCs' = {IF t.taskId = tsc.taskId
                               THEN [t EXCEPT !.msgs = t.msgs \ {msg}]
                               ELSE t : t \in TSCs}
                \/ /\ tsc.state = "Available"
-                  /\ \/ TSCConfirmTask_Success(msg, tsc)
-                     \/ /\ TSCSendResponse(msg.pubkey, [type |-> "CONFIRM_FAIL", src |-> tsc.pubkey])
-                        /\ TSCs' = {IF t.taskId = tsc.taskId
-                                    THEN [t EXCEPT !.msgs = t.msgs \ {msg}]
-                                    ELSE t : t \in TSCs}
+                  /\ IF TSCConfirmTask_CanParticipate(msg, tsc) 
+                     THEN /\ TSCConfirmTask_AddParticipant(msg, tsc)
+                          /\ TSCSendResponse(msg.pubkey, [type |-> "CONFIRM_SUCCESS", pubkey |-> tsc.pubkey])                    
+                     ELSE /\ TSCs' = {IF t.taskId = tsc.taskId
+                                      THEN [t EXCEPT !.msgs = t.msgs \ {msg}]
+                                      ELSE t : t \in TSCs} 
+                          /\ TSCSendResponse(msg.pubkey, [type |-> "CONFIRM_FAIL", pubkey |-> tsc.pubkey])
     /\ UNCHANGED <<TSSC, USSC, USCs>>
 
 
@@ -82,5 +84,5 @@ TSCNext == \/ /\ Cardinality(TSCs) = 0
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 15:22:40 CET 2024 by jungc
+\* Last modified Sat Feb 24 17:02:50 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

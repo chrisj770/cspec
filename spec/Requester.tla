@@ -26,7 +26,9 @@ Init ==
                     msgs |-> {}, 
                     state |-> "SEND_REGISTER",
                     pubkey |-> "",
-                    tasks |-> Tasks]]
+                    tasks |-> Tasks,
+                    unconfirmedWorkers |-> <<>>, 
+                    confirmedWorkers |-> <<>>]]
                     
 SendRegister(i) == 
     /\ Requesters[i].state = "SEND_REGISTER"
@@ -85,10 +87,18 @@ SendQueryTasks(i) ==
     /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, TSCs, USSC, USCs>>
     
+GetFirstTask(msg) ==
+    CHOOSE t \in msg.tasks : \A y \in msg.tasks : 
+    t.taskId # y.taskId => t.taskId < y.taskId  
+    
 ReceiveQueryTasks_Success(i, msg) == 
     Requesters' = [Requesters EXCEPT 
                     ![i].msgs = Requesters[i].msgs \ {msg},
                     ![i].tasks = msg.tasks,
+                    ![i].unconfirmedWorkers = IF Cardinality(msg.tasks) > 0 
+                                              THEN GetFirstTask(msg).participants 
+                                              ELSE <<>>, 
+                    ![i].confirmedWorkers = <<>>,
                     ![i].state = IF Cardinality(msg.tasks) > 0 
                                  THEN "SEND_KEY"
                                  ELSE "TERMINATED"]
@@ -104,7 +114,36 @@ ReceiveQueryTasks(i) ==
                                                  ![i].state = "SEND_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
     
-SendKey(i) == TRUE
+GetActiveTask(i) ==
+    CHOOSE t \in Requesters[i].tasks : 
+           \A y \in Requesters[i].tasks : 
+           t.taskId # y.taskId => t.taskId < y.taskId
+    
+SendKey(i) ==
+    /\ Requesters[i].state = "SEND_KEY"
+    /\ Len(Requesters[i].unconfirmedWorkers) > 0
+    /\ LET participantPubkey == Head(Requesters[i].unconfirmedWorkers) IN 
+        /\ LET wid == CHOOSE w \in 1..NumWorkers : Workers[w].pubkey = participantPubkey IN 
+            /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union 
+                                                        {[type |-> "SEND_KEY",
+                                                         pubkey |-> Requesters[i].pubkey, 
+                                                         keyshare |-> "Placeholder"]}]
+            /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
+    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>
+
+ReceiveKey(i) == 
+    /\ Requesters[i].state = "RECV_KEY"
+    /\ Len(Requesters[i].unconfirmedWorkers) > 0
+    /\ \E msg \in Requesters[i].msgs : /\ msg.type = "ACK" 
+                                       /\ msg.pubkey = Head(Requesters[i].unconfirmedWorkers)
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : /\ m.type = "ACK" 
+                                                    /\ m.pubkey = Head(Requesters[i].unconfirmedWorkers) IN 
+        /\ Requesters' = [Requesters EXCEPT ![i].unconfirmedWorkers = Tail(Requesters[i].unconfirmedWorkers),
+                                            ![i].confirmedWorkers = Head(Requesters[i].unconfirmedWorkers),
+                                            ![i].state = IF Len(Requesters[i].confirmedWorkers) + 1 = Len(GetActiveTask(i).participants)
+                                                         THEN "QUERY_HASHES"
+                                                         ELSE "SEND_KEY"]
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
     
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
@@ -118,12 +157,14 @@ Next ==
         \/ SendRegister(requester)
         \/ SendPostTasks(requester)
         \/ SendQueryTasks(requester)
+        \/ SendKey(requester)
         \/ ReceiveRegister(requester)        
         \/ ReceivePostTasks(requester)
         \/ ReceiveQueryTasks(requester)
+        \/ ReceiveKey(requester)
     \/ Terminating
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 14:37:43 CET 2024 by jungc
+\* Last modified Sat Feb 24 16:58:47 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

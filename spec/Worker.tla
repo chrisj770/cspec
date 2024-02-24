@@ -9,7 +9,7 @@ TypeOK ==
          "SEND_QUERY_TASKS",    \* Request list of active tasks via TSSC
          "RECV_QUERY_TASKS",    \* Receive list of active tasks from TSSC, or INVALID
          "SEND_CONFIRM_TASK",   \* Attempt to enlist as a confirmed WORKER for each selected TSC
-         "GET_KEY",             \* Await key-share from REQUESTER for single task
+         "RECV_SEND_KEY",       \* Await key-share from REQUESTER for single task
          "COMPUTE",             \* Generate sensory data
          "SUBMIT_DATA",         \* Attempt to submit encrypted sensory data to STORAGE
          "SUBMIT_HASH",         \* Attempt to submit hash of sensory data to TSC
@@ -28,7 +28,8 @@ Init ==
                 state |-> "SEND_REGISTER",
                 pubkey |-> "",
                 unconfirmedTasks |-> {}, 
-                confirmedTasks |-> {}]]
+                confirmedTasks |-> {}, 
+                keyshare |-> NULL]]
     
 SendRegister(i) == 
     /\ Workers[i].state = "SEND_REGISTER"
@@ -99,7 +100,7 @@ ReceiveConfirmTask_Failed(i, msg, task) ==
                 ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId},
                 ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
                              THEN IF Cardinality(Workers[i].confirmedTasks) > 0
-                                  THEN "GET_KEY"
+                                  THEN "RECV_SEND_KEY"
                                   ELSE "SEND_QUERY_TASK"
                              ELSE "SEND_CONFIRM_TASK"]
 
@@ -109,19 +110,37 @@ ReceiveConfirmTask_Success(i, msg, task) ==
                 ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
                 ![i].confirmedTasks = Workers[i].confirmedTasks \union {task},
                 ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
-                             THEN "GET_KEY"
+                             THEN "RECV_SEND_KEY"
                              ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask(i) == 
     /\ Workers[i].state = "RECV_CONFIRM_TASK"
-    /\ \E msg \in Workers[i].msgs : msg.src \in {t.pubkey : t \in Workers[i].unconfirmedTasks}
-    /\ LET msg == CHOOSE m \in Workers[i].msgs : m.src \in {t.pubkey : t \in Workers[i].unconfirmedTasks}
-           task == CHOOSE t \in Workers[i].unconfirmedTasks : t.pubkey = msg.src IN 
+    /\ \E msg \in Workers[i].msgs : msg.pubkey \in {t.pubkey : t \in Workers[i].unconfirmedTasks}
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : m.pubkey \in {t.pubkey : t \in Workers[i].unconfirmedTasks}
+           task == CHOOSE t \in Workers[i].unconfirmedTasks : t.pubkey = msg.pubkey IN 
         \/ /\ msg.type \in {"INVALID", "CONFIRM_FAIL", "CANCELED", "COMPLETED"}
            /\ ReceiveConfirmTask_Failed(i, msg, task)
         \/ /\ msg.type = "CONFIRM_SUCCESS" 
            /\ ReceiveConfirmTask_Success(i, msg, task)
     /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
+    
+GetActiveTask(i) ==
+    CHOOSE t \in Workers[i].confirmedTasks : 
+           \A y \in Workers[i].confirmedTasks : 
+           t.taskId # y.taskId => t.taskId < y.taskId
+
+ReceiveSendKey(i) == 
+    /\ Workers[i].state = "RECV_SEND_KEY"
+    /\ Workers[i].keyshare = NULL
+    /\ LET activeTask == GetActiveTask(i) IN 
+        /\ \E msg \in Workers[i].msgs : msg.type = "SEND_KEY" /\ msg.pubkey = activeTask.owner  
+        /\ LET msg == CHOOSE m \in Workers[i].msgs : m.type = "SEND_KEY" /\ m.pubkey = activeTask.owner IN 
+            /\ LET rid == CHOOSE r \in 1..NumRequesters : Requesters[r].pubkey = msg.pubkey IN
+                /\ Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union
+                                                                  {[type |-> "ACK", pubkey |-> Workers[i].pubkey]}]
+            /\ Workers' = [Workers EXCEPT ![i].keyshare = msg.keyshare, 
+                                          ![i].state = "COMPUTE"] 
+    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>
     
     
 Terminating == /\ \A w \in 1..NumWorkers: Workers[w].state = "TERMINATED"
@@ -137,9 +156,10 @@ Next ==
         \/ ReceiveRegister(worker)
         \/ ReceiveQueryTasks(worker)
         \/ ReceiveConfirmTask(worker)
+        \/ ReceiveSendKey(worker)
     \/ Terminating
         
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 15:25:12 CET 2024 by jungc
+\* Last modified Sat Feb 24 16:55:58 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

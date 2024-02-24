@@ -51,13 +51,15 @@ TSSCReceiveQueryTasks_Requester ==
     /\ LET msg == CHOOSE m \in TSSC.msgs : QueryTasks_Requester(m) IN 
         /\ LET matchingTSCs == TSCs IN 
            TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> matchingTSCs])
-    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>> 
+        /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}] 
+    /\ UNCHANGED <<TSCs, USSC, USCs>> 
 
 TSSCReceiveQueryTasks_Worker == 
     /\ \E msg \in TSSC.msgs : QueryTasks_Worker(msg)
     /\ LET msg == CHOOSE m \in TSSC.msgs : QueryTasks_Worker(m) IN
-        TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> TSCs]) 
-    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>            
+        /\ TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> TSCs])
+        /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}]  
+    /\ UNCHANGED <<TSCs, USSC, USCs>>            
 
 (*
 TSSCReceiveQueryTasks == 
@@ -83,5 +85,5 @@ TSSCNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 15:11:57 CET 2024 by jungc
+\* Last modified Sat Feb 24 16:48:35 CET 2024 by jungc
 \* Created Thu Feb 22 09:13:46 CET 2024 by jungc
