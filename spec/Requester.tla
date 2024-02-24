@@ -23,72 +23,71 @@ TypeOK ==
 
 Init == 
     Requesters = [r \in 1..NumRequesters |-> [
-                    msgs |-> <<>>, 
+                    msgs |-> {}, 
                     state |-> "SEND_REGISTER",
                     pubkey |-> "",
                     tasks |-> Tasks]]
                     
 SendRegister(i) == 
     /\ Requesters[i].state = "SEND_REGISTER"
-    /\ Len(USSC.msgs) = 0
-    /\ USSC' = [USSC EXCEPT !.msgs = USSC.msgs \o 
-        <<[type |-> "REGISTER", 
+    /\ USSC' = [USSC EXCEPT !.msgs = USSC.msgs \union 
+        {[type |-> "REGISTER", 
           userType |-> "REQUESTER", 
-          src |-> i]>>]
+          src |-> i]}]
     /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_REGISTER"]
     /\ UNCHANGED <<Workers, USCs, TSSC, TSCs>>
     
 ReceiveRegister(i) == 
     /\ Requesters[i].state = "RECV_REGISTER"
-    /\ Len(Requesters[i].msgs) > 0
-    /\ LET msg == Head(Requesters[i].msgs) IN 
-        /\ msg.src = "USSC"
-        /\ msg.type = "REGISTERED"
-        /\ Requesters' = [Requesters EXCEPT 
-            ![i].pubkey = msg.pubkey, 
-            ![i].msgs = Tail(Requesters[i].msgs),
-            ![i].state = "SEND_POST_TASKS"]
+    /\ \E msg \in Requesters[i].msgs : msg.src = "USSC"
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : m.src = "USSC" IN
+       \/ /\ msg.type = "REGISTERED"
+          /\ Requesters' = [Requesters EXCEPT 
+                           ![i].pubkey = msg.pubkey, 
+                           ![i].msgs = Requesters[i].msgs \ {msg},
+                           ![i].state = "SEND_POST_TASKS"]
+       \/ /\ msg.type = "NOT_REGISTERED"
+          /\ Requesters' = [Requesters EXCEPT 
+                           ![i].msgs = Requesters[i].msgs \ {msg},
+                           ![i].state = "TERMINATED"]
     /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs>>
     
 SendPostTasks(i) == 
     /\ Requesters[i].state = "SEND_POST_TASKS"
-    /\ Len(TSSC.msgs) = 0
-    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \o
-        <<[type |-> "POST_TASKS", 
+    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \union
+        {[type |-> "POST_TASKS", 
           pubkey |-> Requesters[i].pubkey, 
-          tasks |-> Requesters[i].tasks]>>]
+          tasks |-> Requesters[i].tasks]}]
     /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_POST_TASKS"]
     /\ UNCHANGED <<Workers, TSCs, USSC, USCs>>
     
 ReceivePostTasks(i) == 
     /\ Requesters[i].state = "RECV_POST_TASKS"
-    /\ Len(Requesters[i].msgs) > 0
-    /\ LET msg == Head(Requesters[i].msgs) IN 
-        /\ msg.src = "TSSC"
-        /\ \/ /\ msg.type = "ACK"
-              /\ Requesters' = [Requesters EXCEPT
-                  ![i].tasks = <<>>,
-                  ![i].state = "SEND_QUERY_TASKS",
-                  ![i].msgs = Tail(Requesters[i].msgs)]
-           \/ /\ msg.type = "INVALID"
-              /\ Requesters' = [Requesters EXCEPT
-                  ![i].state = "TERMINATED",
-                  ![i].msgs = Tail(Requesters[i].msgs)] 
+    /\ \E msg \in Requesters[i].msgs: msg.src = "TSSC"
+    /\ \/ LET msg == CHOOSE m \in Requesters[i].msgs : m.src = "TSSC" IN 
+          \/ /\ msg.type = "ACK"
+             /\ Requesters' = [Requesters EXCEPT
+                              ![i].tasks = <<>>,
+                              ![i].state = "SEND_QUERY_TASKS",
+                              ![i].msgs = Requesters[i].msgs \ {msg}]
+          \/ /\ msg.type = "INVALID"
+             /\ Requesters' = [Requesters EXCEPT
+                              ![i].state = "TERMINATED",
+                              ![i].msgs = Requesters[i].msgs \ {msg}] 
     /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs>>
     
 SendQueryTasks(i) == 
     /\ Requesters[i].state = "SEND_QUERY_TASKS"
-    /\ Len(TSSC.msgs) = 0
-    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \o
-        <<[type |-> "QUERY_TASKS", 
+    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \union
+        {[type |-> "QUERY_TASKS", 
           pubkey |-> Requesters[i].pubkey, 
-          owner |-> Requesters[i].pubkey]>>]
+          owner |-> Requesters[i].pubkey]}]
     /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, TSCs, USSC, USCs>>
     
 ReceiveQueryTasks_Success(i, msg) == 
     Requesters' = [Requesters EXCEPT 
-                    ![i].msgs = Tail(Requesters[i].msgs),
+                    ![i].msgs = Requesters[i].msgs \ {msg},
                     ![i].tasks = msg.tasks,
                     ![i].state = IF Len(msg.tasks) > 0 
                                  THEN IF \A j \in 1..Len(msg.tasks) : 
@@ -99,14 +98,13 @@ ReceiveQueryTasks_Success(i, msg) ==
     
 ReceiveQueryTasks(i) == 
     /\ Requesters[i].state = "RECV_QUERY_TASKS"
-    /\ Len(Requesters[i].msgs) > 0
-    /\ LET msg == Head(Requesters[i].msgs) IN 
-        /\ msg.src = "TSSC"
-        /\ \/ /\ msg.type = "INVALID"
-              /\ Requesters' = [Requesters EXCEPT ![i].msgs = Tail(Requesters[i].msgs),
-                                                  ![i].state = "SEND_QUERY_TASKS"]
-           \/ /\ msg.type = "TASKS"
-              /\ ReceiveQueryTasks_Success(i, msg)
+    /\ \E msg \in Requesters[i].msgs: msg.src = "TSSC"
+    /\ \/ LET msg == CHOOSE m \in Requesters[i].msgs : m.src = "TSSC" IN
+          \/ /\ msg.type = "TASKS"
+             /\ ReceiveQueryTasks_Success(i, msg)
+          \/ /\ msg.type = "INVALID"
+             /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                                 ![i].state = "SEND_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
     
 SendKey(i) == TRUE
@@ -130,5 +128,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 10:55:49 CET 2024 by jungc
+\* Last modified Sat Feb 24 13:09:42 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

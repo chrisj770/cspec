@@ -21,48 +21,46 @@ TSCPostTasks(tasks, owner) ==
                     expertiseReputationThreshold |-> 0,
                     checkQ |-> [j \in 0..1 |-> TRUE],
                     QEvaluate |-> [j \in 0..1 |-> TRUE],
-                    msgs |-> <<>>]]
+                    msgs |-> {}]]
     IN /\ TSCs' = TSCs \o nTasks
        /\ NextPubkey' = NextPubkey + Len(tasks)
     
 TSCSendResponse(pubkey, message) == 
     \/ /\ USSCCheckUser(pubkey, "REQUESTER")
        /\ LET rid == CHOOSE key \in DOMAIN Requesters : Requesters[key].pubkey = pubkey IN
-            /\ Len(Requesters[rid].msgs) = 0
-            /\ Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \o message]
+            /\ Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union {message}]
        /\ UNCHANGED <<Workers>>
     \/ /\ USSCCheckUser(pubkey, "WORKER")
        /\ LET wid == CHOOSE key \in DOMAIN Workers : Workers[key].pubkey = pubkey IN
-            /\ Len(Workers[wid].msgs) = 0
-            /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \o message]
+            /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
        /\ UNCHANGED <<Requesters>>
 
 TSCConfirmTask_Success(i, msg, tsc) == 
-   /\ Len(tsc.participants) < tsc.numParticipants
-   /\ LET user == USSCGetUser(msg.pubkey, "WORKER") IN
+    /\ Len(tsc.participants) < tsc.numParticipants
+    /\ LET user == USSCGetUser(msg.pubkey, "WORKER") IN
         /\ tsc.checkQ[user.info.reputation]
-        /\ TSCs' = [TSCs EXCEPT ![i].msgs = Tail(tsc.msgs),
+        /\ TSCs' = [TSCs EXCEPT ![i].msgs = tsc.msgs \ {msg},
                                 ![i].participants = tsc.participants \o <<user.info.pubkey>>,
                                 ![i].state = IF Len(tsc.participants) + 1 = tsc.numParticipants
                                              THEN "Unavailable" ELSE "Available"]
-   /\ TSCSendResponse(msg.pubkey, <<[type |-> "CONFIRM_SUCCESS", src |-> tsc.pubkey]>>)
+    /\ TSCSendResponse(msg.pubkey, [type |-> "CONFIRM_SUCCESS", src |-> tsc.pubkey])
               
 TSCConfirmTask(i) == 
-    /\ LET tsc == TSCs[i] IN
-        /\ Len(tsc.msgs) > 0
-        /\ USSCCheckUser(Head(tsc.msgs).pubkey, "WORKER")
-        /\ LET msg == Head(tsc.msgs) IN 
-            \/ /\ \/ /\ tsc.state \in {"Pending", "Unavailable", "QEvaluating"}
-                     /\ TSCSendResponse(msg.pubkey, <<[type |-> "INVALID", src |-> tsc.pubkey]>>)
-                  \/ /\ tsc.state = "Canceled"
-                     /\ TSCSendResponse(msg.pubkey, <<[type |-> "CANCELED", src |-> tsc.pubkey]>>)
-                  \/ /\ tsc.state = "Completed"
-                     /\ TSCSendResponse(msg.pubkey, <<[type |-> "COMPLETED", src |-> tsc.pubkey]>>)
-               /\ TSCs' = [TSCs EXCEPT ![i].msgs = Tail(tsc.msgs)]
-            \/ /\ tsc.state = "Available"
-               /\ \/ TSCConfirmTask_Success(i, msg, tsc)
-                  \/ /\ TSCSendResponse(msg.pubkey, <<[type |-> "CONFIRM_FAIL", src |-> tsc.pubkey]>>)
-                     /\ TSCs' = [TSCs EXCEPT ![i].msgs = Tail(tsc.msgs)]
+    /\ LET tsc == TSCs[i] IN 
+        /\ \E msg \in tsc.msgs : msg.type = "CONFIRM_TASK"
+        /\ LET msg == CHOOSE m \in tsc.msgs : m.type = "CONFIRM_TASK" IN
+            /\ USSCCheckUser(msg.pubkey, "WORKER")
+            /\ \/ /\ \/ /\ tsc.state \in {"Pending", "Unavailable", "QEvaluating"}
+                        /\ TSCSendResponse(msg.pubkey, [type |-> "INVALID", src |-> tsc.pubkey])
+                     \/ /\ tsc.state = "Canceled"
+                        /\ TSCSendResponse(msg.pubkey, [type |-> "CANCELED", src |-> tsc.pubkey])
+                     \/ /\ tsc.state = "Completed"
+                        /\ TSCSendResponse(msg.pubkey, [type |-> "COMPLETED", src |-> tsc.pubkey])
+                  /\ TSCs' = [TSCs EXCEPT ![i].msgs = tsc.msgs \ {msg}]
+               \/ /\ tsc.state = "Available"
+                  /\ \/ TSCConfirmTask_Success(i, msg, tsc)
+                     \/ /\ TSCSendResponse(msg.pubkey, [type |-> "CONFIRM_FAIL", src |-> tsc.pubkey])
+                        /\ TSCs' = [TSCs EXCEPT ![i].msgs = tsc.msgs \ {msg}]
     /\ UNCHANGED <<TSSC, USSC, USCs>>
 
 
@@ -75,5 +73,5 @@ TSCNext == \/ /\ Len(TSCs) = 0
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 10:55:29 CET 2024 by jungc
+\* Last modified Sat Feb 24 13:30:36 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

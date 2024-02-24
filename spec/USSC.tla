@@ -6,7 +6,7 @@ CONSTANT RegistrationDeadline
 USSCTypeOK == TRUE 
 
 USSCInit == 
-    /\ USSC = [msgs |-> <<>>]
+    /\ USSC = [msgs |-> {}]
     /\ NextPubkey = 1
 
 USSCReceiveRegister(msg) == \E usc \in 1..NumUSCs :
@@ -15,17 +15,15 @@ USSCReceiveRegister(msg) == \E usc \in 1..NumUSCs :
     /\ LET newKey == ToString(NextPubkey) IN
        /\ USCRegister(usc, newKey, msg.userType)
        /\ IF msg.userType = "WORKER" 
-          THEN /\ Len(Workers[msg.src].msgs) = 0
-               /\ Workers' = [Workers EXCEPT ![msg.src].msgs = Workers[msg.src].msgs \o 
-                             <<[type |-> "REGISTERED", 
+          THEN /\ Workers' = [Workers EXCEPT ![msg.src].msgs = Workers[msg.src].msgs \union 
+                             {[type |-> "REGISTERED", 
                                src |-> "USSC",  
-                               pubkey |-> newKey]>>]
+                               pubkey |-> newKey]}]
                /\ UNCHANGED <<Requesters, TSSC, TSCs>>
-          ELSE /\ Len(Requesters[msg.src].msgs) = 0
-               /\ Requesters' = [Requesters EXCEPT ![msg.src].msgs = Requesters[msg.src].msgs \o 
-                                <<[type |-> "REGISTERED", 
+          ELSE /\ Requesters' = [Requesters EXCEPT ![msg.src].msgs = Requesters[msg.src].msgs \union
+                                {[type |-> "REGISTERED", 
                                   src |-> "USSC",  
-                                  pubkey |-> newKey]>>]
+                                  pubkey |-> newKey]}]
                /\ UNCHANGED <<Workers, TSSC, TSCs>>
             
 USSCCheckUser(pubkey, userType) == 
@@ -38,15 +36,15 @@ USSCGetUser(pubkey, userType) ==
     IN USCs[i]
     
 USSCReceive == 
-    /\ Len(USSC.msgs) > 0
-    /\ LET message == Head(USSC.msgs) IN
-          USSCReceiveRegister(message)
-    /\ USSC' = [USSC EXCEPT !.msgs = Tail(USSC.msgs)]
+    /\ \E msg \in USSC.msgs : msg.type = "REGISTER"
+    /\ LET msg == CHOOSE m \in USSC.msgs : m.type = "REGISTER" IN
+       /\ USSCReceiveRegister(msg)
+       /\ USSC' = [USSC EXCEPT !.msgs = USSC.msgs \ {msg}]
         
 USSCNext == 
-    \/ USSCReceive
+    USSCReceive
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 10:43:20 CET 2024 by jungc
+\* Last modified Sat Feb 24 12:59:24 CET 2024 by jungc
 \* Created Thu Feb 22 10:07:57 CET 2024 by jungc
