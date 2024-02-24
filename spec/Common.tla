@@ -15,9 +15,9 @@ VARIABLES
     TSSC,
     TSCs, 
     Time, 
-    NextUserId
+    NextPubkey
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Feb 23 16:06:08 CET 2024 by jungc
+\* Last modified Sat Feb 24 10:43:24 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

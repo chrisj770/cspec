@@ -7,27 +7,35 @@ USSCTypeOK == TRUE
 
 USSCInit == 
     /\ USSC = [msgs |-> <<>>]
-    /\ NextUserId = 1
+    /\ NextPubkey = 1
 
 USSCReceiveRegister(msg) == \E usc \in 1..NumUSCs :
     /\ USCNotRegistered(usc)
-    /\ NextUserId' = NextUserId + 1
-    /\ LET newKey == ToString(NextUserId) IN
+    /\ NextPubkey' = NextPubkey + 1
+    /\ LET newKey == ToString(NextPubkey) IN
        /\ USCRegister(usc, newKey, msg.userType)
        /\ IF msg.userType = "WORKER" 
-          THEN /\ Workers' = [Workers EXCEPT ![msg.src].msgs = Workers[msg.src].msgs \o 
+          THEN /\ Len(Workers[msg.src].msgs) = 0
+               /\ Workers' = [Workers EXCEPT ![msg.src].msgs = Workers[msg.src].msgs \o 
                              <<[type |-> "REGISTERED", 
                                src |-> "USSC",  
                                pubkey |-> newKey]>>]
                /\ UNCHANGED <<Requesters, TSSC, TSCs>>
-          ELSE /\ Requesters' = [Requesters EXCEPT ![msg.src].msgs = Requesters[msg.src].msgs \o 
+          ELSE /\ Len(Requesters[msg.src].msgs) = 0
+               /\ Requesters' = [Requesters EXCEPT ![msg.src].msgs = Requesters[msg.src].msgs \o 
                                 <<[type |-> "REGISTERED", 
                                   src |-> "USSC",  
                                   pubkey |-> newKey]>>]
                /\ UNCHANGED <<Workers, TSSC, TSCs>>
             
-USSCGetUser(pubkey, userType) == 
+USSCCheckUser(pubkey, userType) == 
     \E usc \in 1..NumUSCs : USCIsRegistered(usc, pubkey, userType)
+    
+USSCGetUser(pubkey, userType) == 
+    LET i == CHOOSE j \in 1..NumUSCs :
+                /\ USCs[j].info.pubkey = pubkey
+                /\ USCs[j].info.userType = userType 
+    IN USCs[i]
     
 USSCReceive == 
     /\ Len(USSC.msgs) > 0
@@ -40,5 +48,5 @@ USSCNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Feb 23 15:51:04 CET 2024 by jungc
+\* Last modified Sat Feb 24 10:43:20 CET 2024 by jungc
 \* Created Thu Feb 22 10:07:57 CET 2024 by jungc
