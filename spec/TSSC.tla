@@ -35,16 +35,31 @@ TSSCReceivePostTasks ==
            /\ UNCHANGED <<TSCs, NextPubkey>>
     /\ UNCHANGED <<USSC, USCs>>
     
-TSSCReceiveQueryTasks_Requester(msg) == 
+QueryTasks_Requester(msg) == 
+    /\ msg.type = "QUERY_TASKS" 
+    /\ USSCCheckUser(msg.pubkey, "REQUESTER")
     /\ msg.owner # NULL
-    /\ \A i \in 1..Len(TSCs) : TSCs[i].pubkey = msg.owner => TSCs[i].state = "Unavailable"
-    /\ LET matchingTSCs == TSCs IN 
-       TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> matchingTSCs]) 
+    /\ \A t \in TSCs : t.owner = msg.owner => t.state = "Unavailable"
+    
+QueryTasks_Worker(msg) == 
+    /\ msg.type = "QUERY_TASKS" 
+    /\ USSCCheckUser(msg.pubkey, "WORKER")
+    /\ msg.owner = NULL
+    
+TSSCReceiveQueryTasks_Requester == 
+    /\ \E msg \in TSSC.msgs : QueryTasks_Requester(msg)
+    /\ LET msg == CHOOSE m \in TSSC.msgs : QueryTasks_Requester(m) IN 
+        /\ LET matchingTSCs == TSCs IN 
+           TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> matchingTSCs])
+    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>> 
 
-TSSCReceiveQueryTasks_Worker(msg) == 
-    /\ msg.owner = NULL 
-    /\ TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> TSCs])                  
+TSSCReceiveQueryTasks_Worker == 
+    /\ \E msg \in TSSC.msgs : QueryTasks_Worker(msg)
+    /\ LET msg == CHOOSE m \in TSSC.msgs : QueryTasks_Worker(m) IN
+        TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> TSCs]) 
+    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>            
 
+(*
 TSSCReceiveQueryTasks == 
     /\ \E msg \in TSSC.msgs : msg.type = "QUERY_TASKS"
     /\ LET msg == CHOOSE m \in TSSC.msgs : m.type = "QUERY_TASKS" IN     
@@ -58,13 +73,15 @@ TSSCReceiveQueryTasks ==
                  /\ TSSCReceiveQueryTasks_Worker(msg)
            /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}, !.state = "WORKING"]
     /\ UNCHANGED <<TSCs, USSC, USCs>>
-    
+*) 
+ 
 TSSCNext == 
     \/ TSSCReceivePostTasks
-    \/ /\ TSSCReceiveQueryTasks
+    \/ /\ \/ TSSCReceiveQueryTasks_Requester
+          \/ TSSCReceiveQueryTasks_Worker
        /\ UNCHANGED <<NextPubkey>>
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 13:35:44 CET 2024 by jungc
+\* Last modified Sat Feb 24 15:11:57 CET 2024 by jungc
 \* Created Thu Feb 22 09:13:46 CET 2024 by jungc

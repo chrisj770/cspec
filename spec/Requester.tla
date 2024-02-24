@@ -1,5 +1,5 @@
 ----------------------------- MODULE Requester -----------------------------
-EXTENDS Sequences, Common
+EXTENDS FiniteSets, Sequences, Common
 
 CONSTANT Tasks
         
@@ -89,11 +89,8 @@ ReceiveQueryTasks_Success(i, msg) ==
     Requesters' = [Requesters EXCEPT 
                     ![i].msgs = Requesters[i].msgs \ {msg},
                     ![i].tasks = msg.tasks,
-                    ![i].state = IF Len(msg.tasks) > 0 
-                                 THEN IF \A j \in 1..Len(msg.tasks) : 
-                                         msg.tasks[j].state = "Unavailable"
-                                      THEN "SEND_KEY"
-                                      ELSE "SEND_QUERY_TASKS"
+                    ![i].state = IF Cardinality(msg.tasks) > 0 
+                                 THEN "SEND_KEY"
                                  ELSE "TERMINATED"]
     
 ReceiveQueryTasks(i) == 
@@ -128,5 +125,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 13:09:42 CET 2024 by jungc
+\* Last modified Sat Feb 24 14:37:43 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

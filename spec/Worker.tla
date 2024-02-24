@@ -1,5 +1,5 @@
 ------------------------------- MODULE Worker -------------------------------
-EXTENDS Sequences, Common, Integers
+EXTENDS FiniteSets, Sequences, Common, Integers
     
 TypeOK == 
     /\ \A worker \in Workers : [Workers.state -> 
@@ -27,8 +27,8 @@ Init ==
                 msgs |-> {}, 
                 state |-> "SEND_REGISTER",
                 pubkey |-> "",
-                unconfirmedTasks |-> <<>>, 
-                confirmedTasks |-> <<>>]]
+                unconfirmedTasks |-> {}, 
+                confirmedTasks |-> {}]]
     
 SendRegister(i) == 
     /\ Workers[i].state = "SEND_REGISTER"
@@ -66,10 +66,8 @@ SendQueryTasks(i) ==
 ReceiveQueryTasks_Success(i, msg) == 
     Workers' = [Workers EXCEPT 
                 ![i].msgs = Workers[i].msgs \ {msg},
-                ![i].unconfirmedTasks = IF Len(msg.tasks) > 0 
-                                        THEN Workers[i].unconfirmedTasks \o msg.tasks
-                                        ELSE Workers[i].unconfirmedTasks,
-                ![i].state = IF Len(msg.tasks) > 0
+                ![i].unconfirmedTasks = msg.tasks,
+                ![i].state = IF Cardinality(msg.tasks) > 0
                              THEN "SEND_CONFIRM_TASK"
                              ELSE "TERMINATED"]
     
@@ -86,40 +84,43 @@ ReceiveQueryTasks(i) ==
     
 SendConfirmTask(i) == 
     /\ Workers[i].state = "SEND_CONFIRM_TASK" 
-    /\ LET tscIndex == CHOOSE j \in 1..Len(TSCs) : TSCs[j].pubkey = Head(Workers[i].unconfirmedTasks).pubkey IN 
-          /\ TSCs' = [TSCs EXCEPT ![tscIndex].msgs = TSSC.msgs \union
-                        {[type |-> "CONFIRM_TASK",
-                          pubkey |-> Workers[i].pubkey]}]
+    /\ LET currTask == CHOOSE tsc \in Workers[i].unconfirmedTasks :
+                       \A other \in Workers[i].unconfirmedTasks: 
+                       tsc # other => tsc.taskId < other.taskId IN 
+        /\ TSCs' = {IF t.taskId = currTask.taskId 
+                    THEN [t EXCEPT !.msgs = t.msgs \union {[type |-> "CONFIRM_TASK", pubkey |-> Workers[i].pubkey]}]
+                    ELSE t : t \in TSCs}
     /\ Workers' = [Workers EXCEPT ![i].state = "RECV_CONFIRM_TASK"]
     /\ UNCHANGED <<Requesters, TSSC, USSC, USCs>>
     
-ReceiveConfirmTask_Failed(i, msg) == 
+ReceiveConfirmTask_Failed(i, msg, task) == 
     Workers' = [Workers EXCEPT 
                 ![i].msgs = Workers[i].msgs \ {msg},
-                ![i].unconfirmedTasks = Tail(Workers[i].unconfirmedTasks),
-                ![i].state = IF Len(Workers[i].unconfirmedTasks) = 1
-                             THEN IF Len(Workers[i].confirmedTasks) > 0
+                ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId},
+                ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
+                             THEN IF Cardinality(Workers[i].confirmedTasks) > 0
                                   THEN "GET_KEY"
                                   ELSE "SEND_QUERY_TASK"
                              ELSE "SEND_CONFIRM_TASK"]
 
-ReceiveConfirmTask_Success(i, msg) ==   
+ReceiveConfirmTask_Success(i, msg, task) ==   
     Workers' = [Workers EXCEPT 
                 ![i].msgs = Workers[i].msgs \ {msg},
-                ![i].unconfirmedTasks = Tail(Workers[i].unconfirmedTasks), 
-                ![i].confirmedTasks = Workers[i].confirmedTasks \o <<Head(Workers[i].unconfirmedTasks)>>,
-                ![i].state = IF Len(Workers[i].unconfirmedTasks) = 1
+                ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
+                ![i].confirmedTasks = Workers[i].confirmedTasks \union {task},
+                ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
                              THEN "GET_KEY"
                              ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask(i) == 
     /\ Workers[i].state = "RECV_CONFIRM_TASK"
-    /\ \E msg \in Workers[i].msgs : msg.src \in {Workers[i].unconfirmedTasks[t].pubkey : t \in 1..Len(Workers[i].unconfirmedTasks)}
-    /\ LET msg == CHOOSE m \in Workers[i].msgs : m.src \in {Workers[i].unconfirmedTasks[t].pubkey : t \in 1..Len(Workers[i].unconfirmedTasks)} IN 
+    /\ \E msg \in Workers[i].msgs : msg.src \in {t.pubkey : t \in Workers[i].unconfirmedTasks}
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : m.src \in {t.pubkey : t \in Workers[i].unconfirmedTasks}
+           task == CHOOSE t \in Workers[i].unconfirmedTasks : t.pubkey = msg.src IN 
         \/ /\ msg.type \in {"INVALID", "CONFIRM_FAIL", "CANCELED", "COMPLETED"}
-           /\ ReceiveConfirmTask_Failed(i, msg)
+           /\ ReceiveConfirmTask_Failed(i, msg, task)
         \/ /\ msg.type = "CONFIRM_SUCCESS" 
-           /\ ReceiveConfirmTask_Success(i, msg)
+           /\ ReceiveConfirmTask_Success(i, msg, task)
     /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
     
     
@@ -140,5 +141,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 13:56:41 CET 2024 by jungc
+\* Last modified Sat Feb 24 15:25:12 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc
