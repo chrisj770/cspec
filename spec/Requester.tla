@@ -2,6 +2,18 @@
 EXTENDS FiniteSets, Sequences, Common
 
 CONSTANT Tasks
+
+RequiredTaskFields == {
+    "id",               \* Unique identifier (starting at 1..)
+    "Sd",               \* Submission deadline (time in steps)
+    "Pd",               \* Proving deadline (time, in steps)
+    "Td",               \* Task deadline (time, in steps)
+    "numParticipants"}  \* Required number of participants
+
+ASSUME /\ \A d \in RequiredTaskFields : d \in DOMAIN Tasks
+       /\ \A t \in Tasks: /\ t.Td >= t.Pd
+                          /\ t.Pd >= t.Sd
+       /\ \A t \in Tasks: ~(\E u \in Tasks : t.id = u.id)
         
 TypeOK == 
     /\ \A requester \in Requesters : [requester.state ->
@@ -20,7 +32,7 @@ TypeOK ==
          "RECV_QUERY_DATA",     \* Receive all relevant sensory data from STORAGE
          "EVALUATE",            \* Run evaluation process
          "SEND_SUBMIT_EVAL",    \* Attempt to submit results of evaluation via TSC
-         "RECV_SUBMIT_EVAL",     \* Receive acknowledgement for evaluation results from TSC
+         "RECV_SUBMIT_EVAL",    \* Receive acknowledgement for evaluation results from TSC
          "SEND_WEIGHTS",        \* Attempt to broadcast weights received from evaluation
          "TERMINATED"}]  
 
@@ -151,11 +163,10 @@ SendKey_IsEnabled(i) ==
 SendKey(i) ==
     /\ SendKey_IsEnabled(i)
     /\ LET nextWorkerPubkey == CHOOSE r \in Requesters[i].unconfirmedWorkers : TRUE 
-           wid == CHOOSE w \in 1..NumWorkers : Workers[w].pubkey = nextWorkerPubkey
            request == [type |-> "SEND_KEY", 
                       pubkey |-> Requesters[i].pubkey, 
                       keyshare |-> "PlaceholderKeyshare"]
-       IN /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {request}]
+       IN /\ SendMessage(nextWorkerPubkey, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
     /\ UNCHANGED <<TSSC, TSCs, USSC, USCs, Storage>>
 
@@ -192,9 +203,7 @@ SendQueryHashes(i) ==
     /\ SendQueryHashes_IsEnabled(i)
     /\ LET tsc == CHOOSE t \in TSCs : t.pubkey = Requesters[i].currentTask.pubkey
            request == [type |-> "QUERY_HASHES", pubkey |-> Requesters[i].pubkey] 
-       IN /\ TSCs' = {IF t.taskId = Requesters[i].currentTask.taskId 
-                      THEN [t EXCEPT !.msgs = t.msgs \union {request}]
-                      ELSE t : t \in TSCs} 
+       IN /\ SendMessage(tsc.pubkey, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
     /\ UNCHANGED <<Workers, TSSC, USSC, USCs, Storage>>
     
@@ -265,59 +274,60 @@ Evaluate(i) ==
     /\ Requesters' = [Requesters EXCEPT ![i].state = "SUBMIT_EVAL"] \* TODO 
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
     
+GetLastTaskDeadline(r) ==
+    LET lastTask == CHOOSE t \in r.tasks : \A y \in r.tasks : t.Td # y.Td => t.Td >= y.Td IN lastTask.Td
+    
+EarlyTermination_IsEnabled(i) == 
+    \/ /\ Requesters[i].state = "SEND_REGISTER"      \* Case 1: No tasks to submit prior to registration     
+       /\ Cardinality(Requesters[i].tasks) = 0 
+    \/ /\ Cardinality(Requesters[i].tasks) > 0
+       /\ Time >= GetLastTaskDeadline(Requesters[i]) \* Case 2: Registration/Post not finished before final Task deadline
+       /\ Requesters[i].state \in {"RECV_REGISTER",  
+                                   "RECV_POST_TASKS", 
+                                   "RECV_QUERY_TASKS"}
+                            
+EarlyTermination(i) == 
+    /\ EarlyTermination_IsEnabled(i) 
+    /\ Requesters' = [Requesters EXCEPT ![i].state = "TERMINATED"]
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>> 
+        
+TaskTimeout_IsEnabled(i) == 
+    /\ Requesters[i].currentTask # NULL
+    /\ \/ /\ Time >= Requesters[i].currentTask.Sd   \* Case 1: Keys not sent/ACKed before Submission deadline
+          /\ Requesters[i].state \in {"SEND_KEY", 
+                                      "RECV_KEY"}  
+       \/ /\ Time >= Requesters[i].currentTask.Pd   \* Case 2: Evaluation not complete before Proving deadline
+          /\ Requesters[i].state \in {"SEND_QUERY_HASHES",  
+                                      "RECV_QUERY_HASHES",
+                                      "SEND_QUERY_DATA",
+                                      "RECV_QUERY_DATA",
+                                      "EVALUATE",
+                                      "SEND_SUBMIT_EVAL",
+                                      "RECV_SUBMIT_EVAL",
+                                      "SEND_WEIGHTS"}
+
+TaskTimeout(i) == 
+    /\ TaskTimeout_IsEnabled(i) 
+    /\ LET r == Requesters[i]
+           nextTask == IF Cardinality(Requesters[i].tasks) = 0 THEN NULL ELSE 
+                       CHOOSE t \in r.tasks : \A y \in r.tasks : 
+                              t.taskId # y.taskId => t.taskId < y.taskId   
+       IN Requesters' = [Requesters EXCEPT 
+           ![i].state = IF nextTask = NULL THEN "TERMINATED" ELSE "SEND_KEY",
+           ![i].tasks = IF nextTask = NULL THEN r.tasks ELSE r.tasks \ {nextTask},
+           ![i].currentTask = nextTask,
+           ![i].unconfirmedWorkers = IF nextTask = NULL THEN {} ELSE nextTask.participants,
+           ![i].confirmedWorkers = {}, 
+           ![i].hashes = {},
+           ![i].data = {}]
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
+    
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
     /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs, Storage>> 
 
 Terminated == 
     <>(\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
-    
-GetLastTaskDeadline(r) ==
-    LET lastTask == CHOOSE t \in r.tasks : \A y \in r.tasks : t.Td # y.Td => t.Td >= y.Td
-    IN lastTask.Td
-                            
-EarlyTermination(i) == 
-    LET r == Requesters[i] IN
-        IF \/ /\ r.state = "SEND_REGISTER"          \* Case 1: No tasks to submit prior to registration     
-              /\ Cardinality(r.tasks) = 0 
-           \/ /\ r.state \in {"RECV_REGISTER",      \* Case 2: Registration/Post hangs before Task deadline
-                              "RECV_POST_TASKS", 
-                              "RECV_QUERY_TASKS"}
-              /\ Time >= GetLastTaskDeadline(r)
-        THEN /\ Requesters' = [Requesters EXCEPT ![i].state = "TERMINATED"]
-             /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>> 
-        ELSE FALSE
-        
-TaskTimeout_Update(i) == 
-    LET r == Requesters[i]
-        nextTask == IF Cardinality(Requesters[i].tasks) = 0 THEN NULL ELSE 
-                    CHOOSE t \in r.tasks : \A y \in r.tasks : 
-                           t.taskId # y.taskId => t.taskId < y.taskId   
-    IN Requesters' = [Requesters EXCEPT 
-          ![i].state = IF nextTask = NULL THEN "TERMINATED" ELSE "SEND_KEY",
-          ![i].tasks = IF nextTask = NULL THEN r.tasks ELSE r.tasks \ {nextTask},
-          ![i].currentTask = nextTask,
-          ![i].unconfirmedWorkers = IF nextTask = NULL THEN {} ELSE nextTask.participants,
-          ![i].confirmedWorkers = {}, 
-          ![i].hashes = {},
-          ![i].data = {}]
-
-TaskTimeout(i) == 
-    /\ Requesters[i].currentTask # NULL
-    /\ LET r == Requesters[i] 
-           task == r.currentTask IN
-       IF \/ /\ Time >= task.Sd                     \* Case 1: Keys not sent/ACKed before Submission deadline
-             /\ r.state \in {"SEND_KEY", "RECV_KEY"}  
-          \/ /\ Time >= task.Pd
-             /\ r.state \in {"SEND_QUERY_HASHES",   \* Case 2: Evaluation not complete before Proving deadline
-                             "RECV_QUERY_HASHES",
-                             "SEND_QUERY_DATA",
-                             "RECV_QUERY_DATA",
-                             "EVALUATE",
-                             "SEND_SUBMIT_EVAL",
-                             "RECV_SUBMIT_EVAL"}
-       THEN TaskTimeout_Update(i) ELSE FALSE 
-    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
             
 Next == 
     \/ \E requester \in 1..NumRequesters : 
@@ -340,5 +350,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 16:33:57 CET 2024 by jungc
+\* Last modified Sun Feb 25 17:39:40 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

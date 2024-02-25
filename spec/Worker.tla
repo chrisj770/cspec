@@ -16,11 +16,14 @@ TypeOK ==
          "SEND_SUBMIT_HASH",    \* Attempt to submit hash of sensory data to TSC
          "RECV_SUBMIT_HASH",    \* Receive acknowledgement for hash from TSC 
          "RECV_WEIGHTS",        \* Await weight broadcast from REQUESTER
-         "QUERY_HASHES",        \* Request list of all hashes from TSC
-         "QUERY_DATA",          \* Request all relevant sensory data from STORAGE
+         "SEND_QUERY_HASHES",   \* Request list of all hashes from TSC
+         "RECV_QUERY_HASHES",   \* Receive list of all hashes from TSC
+         "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
+         "SEND_QUERY_DATA",     \* Receive list of sensory data from STORAGE
          "VERIFY",              \* Run verification process
-         "SUBMIT_EVAL",         \* Attempt to submit evaluation results to TSC  
-         "TERMINATED"}]         \*
+         "SEND_SUBMIT_EVAL",    \* Attempt to submit evaluation results to TSC  
+         "RECV_SUBMIT_EVAL",    \* Receive Acknowledgement for evaluation results from TSC
+         "TERMINATED"}]         
          
 StateConsistency == TRUE
          
@@ -113,9 +116,7 @@ SendConfirmTask(i) ==
                        \A other \in Workers[i].unconfirmedTasks: 
                        tsc # other => tsc.taskId < other.taskId
            request == [type |-> "CONFIRM_TASK", pubkey |-> Workers[i].pubkey]
-       IN /\ TSCs' = {IF t.taskId = currTask.taskId 
-                      THEN [t EXCEPT !.msgs = t.msgs \union {request}]
-                      ELSE t : t \in TSCs}
+       IN /\ SendMessage(currTask.pubkey, request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_CONFIRM_TASK"]
     /\ UNCHANGED <<Requesters, TSSC, USSC, USCs, Storage>>
 
@@ -128,27 +129,32 @@ ReceiveConfirmTask_IsEnabled(i) ==
     /\ \E msg \in Workers[i].msgs : ReceiveConfirmTask_MessageFormat(i, msg)
     
 ReceiveConfirmTask_Success(i, msg, task) == 
-    LET firstTask == CHOOSE t \in Workers[i].confirmedTasks \union {task} :
-                         \A y \in Workers[i].confirmedTasks \union {task} : 
-                         t.taskId # y.taskId => t.taskId < y.taskId 
+    LET newTasks == Workers[i].confirmedTasks \union {task} 
+        firstTask == CHOOSE t \in newTasks: \A y \in newTasks: 
+                            t.taskId # y.taskId => t.taskId < y.taskId
+        finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
     IN Workers' = [Workers EXCEPT 
                    ![i].msgs = Workers[i].msgs \ {msg},
                    ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
-                   ![i].confirmedTasks = Workers[i].confirmedTasks \union {task},
-                   ![i].currentTask = firstTask,
-                   ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
-                                THEN "RECV_SEND_KEY"
-                                ELSE "SEND_CONFIRM_TASK"]
+                   ![i].confirmedTasks = newTasks,
+                   ![i].currentTask = IF finished THEN firstTask ELSE NULL,
+                   ![i].state = IF finished THEN "RECV_SEND_KEY" ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask_Failed(i, msg, task) == 
-    Workers' = [Workers EXCEPT 
-                ![i].msgs = Workers[i].msgs \ {msg},
-                ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId},
-                ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
-                             THEN IF Cardinality(Workers[i].confirmedTasks) > 0
-                                  THEN "RECV_SEND_KEY"
-                                  ELSE "SEND_QUERY_TASK"
-                             ELSE "SEND_CONFIRM_TASK"]
+    LET newTasks == Workers[i].confirmedTasks
+        firstTask == IF Cardinality(newTasks) = 0 THEN NULL 
+                     ELSE CHOOSE t \in newTasks: \A y \in newTasks: 
+                                 t.taskId # y.taskId => t.taskId < y.taskId
+        finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
+    IN Workers' = [Workers EXCEPT 
+                   ![i].msgs = Workers[i].msgs \ {msg},
+                   ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId},
+                   ![i].currentTask = IF finished THEN firstTask ELSE NULL,
+                   ![i].state = IF finished THEN
+                                    IF Cardinality(Workers[i].confirmedTasks) > 0
+                                    THEN "RECV_SEND_KEY"
+                                    ELSE "SEND_QUERY_TASK"
+                                ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask(i) == 
     /\ ReceiveConfirmTask_IsEnabled(i)
@@ -166,6 +172,8 @@ ReceiveSendKey_MessageFormat(i, msg) ==
 ReceiveSendKey_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SEND_KEY"
     /\ Workers[i].keyshare = NULL
+    /\ Workers[i].currentTask # NULL
+    /\ Time < Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSendKey_MessageFormat(i, msg) 
 
 ReceiveSendKey(i) == 
@@ -173,41 +181,17 @@ ReceiveSendKey(i) ==
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveSendKey_MessageFormat(i, m)
            rid == CHOOSE r \in 1..NumRequesters : Requesters[r].pubkey = msg.pubkey
            response == [type |-> "ACK", pubkey |-> Workers[i].pubkey]
-       IN /\ Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union {response}]
+       IN /\ SendMessage(msg.pubkey, response)
           /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
                                         ![i].keyshare = msg.keyshare, 
                                         ![i].state = "COMPUTE"] 
     /\ UNCHANGED <<TSSC, TSCs, USSC, USCs, Storage>>
 
-SubmissionDeadlinePassed(i) == 
-    /\ Workers[i].currentTask # NULL
-    /\ Time >= Workers[i].currentTask.Sd
-
-(*
-DropTask(i) == 
-    IF Workers[i].confirmedTasks = {} 
-    THEN Workers' = [Workers EXCEPT ![i].state = "QUERY_TASKS", 
-                                    ![i].keyshare = NULL, 
-                                    ![i].currentTask = NULL]
-    ELSE LET nextTask == CHOOSE t \in Workers[i].confirmedTasks : 
-                             \A y \in Workers[i].confirmedTasks : 
-                             t.taskId # y.taskId => t.taskId < y.taskId IN 
-        Workers' = [Workers EXCEPT ![i].state = "GET_KEY",
-                                   ![i].keyshare = NULL, 
-                                   ![i].currentHash = NULL,
-                                   ![i].currentTask = nextTask,
-                                   ![i].confirmedTasks = Workers[i].confirmedTasks \ {nextTask}]
-
-TimeoutCurrentTask(i) == 
-    /\ Workers[i].state \in {"SEND_SUBMIT_DATA", "RECV_SUBMIT_DATA"}
-    /\ SubmissionDeadlinePassed(i)
-    /\ DropTask(i)
-*)
-
 Compute_IsEnabled(i) == 
     /\ Workers[i].state = "COMPUTE"
     /\ Workers[i].keyshare # NULL 
-    /\ ~SubmissionDeadlinePassed(i)
+    /\ Workers[i].currentTask # NULL
+    /\ Time < Workers[i].currentTask.Sd
     
 Compute(i) == 
     /\ Compute_IsEnabled(i) 
@@ -217,7 +201,8 @@ Compute(i) ==
 SendSubmitData_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_SUBMIT_DATA" 
     /\ Workers[i].keyshare # NULL
-    /\ ~SubmissionDeadlinePassed(i)
+    /\ Workers[i].currentTask # NULL
+    /\ Time < Workers[i].currentTask.Sd
 
 SendSubmitData(i) == 
     /\ SendSubmitData_IsEnabled(i) 
@@ -236,7 +221,8 @@ ReceiveSubmitData_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_SUBMIT_DATA" 
     /\ Workers[i].keyshare # NULL 
     /\ Workers[i].currentHash = NULL
-    /\ ~SubmissionDeadlinePassed(i)
+    /\ Workers[i].currentTask # NULL
+    /\ Time < Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSubmitData_MessageFormat(i, msg)
 
 ReceiveSubmitData(i) == 
@@ -251,16 +237,15 @@ SendSubmitHash_IsEnabled(i) ==
     /\ Workers[i].state = "SEND_SUBMIT_HASH"
     /\ Workers[i].keyshare # NULL
     /\ Workers[i].currentHash # NULL
-    /\ ~SubmissionDeadlinePassed(i)
+    /\ Workers[i].currentTask # NULL
+    /\ Time < Workers[i].currentTask.Sd
 
 SendSubmitHash(i) ==
     /\ SendSubmitHash_IsEnabled(i)
     /\ LET request == [type |-> "SUBMIT_HASH", 
                       pubkey |-> Workers[i].pubkey,
                       hash |-> Workers[i].currentHash]
-       IN /\ TSCs' = {IF t.taskId = Workers[i].currentTask.taskId 
-                      THEN [t EXCEPT !.msgs = t.msgs \union {request}]
-                      ELSE t : t \in TSCs}
+       IN /\ SendMessage(Workers[i].currentTask.pubkey, request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_HASH"]
     /\ UNCHANGED <<Requesters, TSSC, USSC, USCs, Storage>>
 
@@ -271,7 +256,8 @@ ReceiveSubmitHash_MessageFormat(i, msg) ==
 ReceiveSubmitHash_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SUBMIT_HASH" 
     /\ Workers[i].keyshare # NULL
-    /\ ~SubmissionDeadlinePassed(i)
+    /\ Workers[i].currentTask # NULL
+    /\ Time < Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSubmitHash_MessageFormat(i, msg)
 
 ReceiveSubmitHash(i) == 
@@ -279,6 +265,39 @@ ReceiveSubmitHash(i) ==
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveSubmitHash_MessageFormat(i, m)
        IN Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
                                      ![i].state = "RECV_WEIGHTS"]
+    /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs, Storage>>
+    
+TaskTimeout_IsEnabled(i) == 
+    /\ Workers[i].currentTask # NULL
+    /\ \/ /\ Time >= Workers[i].currentTask.Sd          \* Case 1: Submission not complete before Submission deadline
+          /\ Workers[i].state \in {"RECV_SEND_KEY", 
+                                   "COMPUTE",
+                                   "SEND_SUBMIT_DATA", 
+                                   "RECV_SUBMIT_DATA", 
+                                   "SEND_SUBMIT_HASH", 
+                                   "RECV_SUBMIT_HASH"}  
+       \/ /\ Time >= Workers[i].currentTask.Pd          \* Case 2: Evaluation not complete before Proving deadline
+          /\ Workers[i].state \in {"RECV_WEIGHTS",
+                                   "SEND_QUERY_HASHES", 
+                                   "RECV_QUERY_HASHES",
+                                   "SEND_QUERY_DATA", 
+                                   "RECV_QUERY_DATA",
+                                   "VERIFY",
+                                   "SEND_SUBMIT_EVAL",
+                                   "RECV_SUBMIT_EVAL"}
+    
+TaskTimeout(i) == 
+    /\ TaskTimeout_IsEnabled(i) 
+    /\ LET newTasks == Workers[i].confirmedTasks \ Workers[i].currentTask 
+           nextTask == IF Cardinality(newTasks) = 0 THEN NULL ELSE 
+                       CHOOSE t \in newTasks : \A y \in newTasks : 
+                              t.taskId # y.taskId => t.taskId < y.taskId   
+       IN Workers' = [Workers EXCEPT 
+           ![i].state = IF nextTask = NULL THEN "SEND_QUERY_TASKS" ELSE "GET_KEY",
+           ![i].currentTask = nextTask,
+           ![i].confirmedTasks = newTasks,
+           ![i].keyshare = NULL, 
+           ![i].currentHash = NULL]
     /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs, Storage>>
     
 Terminating == /\ \A w \in 1..NumWorkers: Workers[w].state = "TERMINATED"
@@ -300,9 +319,10 @@ Next ==
         \/ ReceiveSendKey(worker)
         \/ ReceiveSubmitData(worker)
         \/ ReceiveSubmitHash(worker)
+        \/ TaskTimeout(worker)
     \/ Terminating
         
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 13:57:45 CET 2024 by jungc
+\* Last modified Sun Feb 25 17:31:23 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc
