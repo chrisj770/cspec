@@ -31,6 +31,11 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Cspec.tla</locationURI>
 		</link>
 		<link>
+			<name>Database.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/Database.tla</locationURI>
+		</link>
+		<link>
 			<name>Requester.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Requester.tla</locationURI>

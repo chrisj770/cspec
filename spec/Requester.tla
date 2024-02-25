@@ -39,7 +39,7 @@ SendRegister(i) ==
           userType |-> "REQUESTER", 
           src |-> i]}]
     /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_REGISTER"]
-    /\ UNCHANGED <<Workers, USCs, TSSC, TSCs>>
+    /\ UNCHANGED <<Workers, USCs, TSSC, TSCs, Storage>>
     
 ReceiveRegister(i) == 
     /\ Requesters[i].state = "RECV_REGISTER"
@@ -54,7 +54,7 @@ ReceiveRegister(i) ==
           /\ Requesters' = [Requesters EXCEPT 
                            ![i].msgs = Requesters[i].msgs \ {msg},
                            ![i].state = "TERMINATED"]
-    /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs>>
+    /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs, Storage>>
     
 SendPostTasks(i) == 
     /\ Requesters[i].state = "SEND_POST_TASKS"
@@ -63,7 +63,7 @@ SendPostTasks(i) ==
           pubkey |-> Requesters[i].pubkey, 
           tasks |-> Requesters[i].tasks]}]
     /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_POST_TASKS"]
-    /\ UNCHANGED <<Workers, TSCs, USSC, USCs>>
+    /\ UNCHANGED <<Workers, TSCs, USSC, USCs, Storage>>
     
 ReceivePostTasks(i) == 
     /\ Requesters[i].state = "RECV_POST_TASKS"
@@ -78,7 +78,7 @@ ReceivePostTasks(i) ==
              /\ Requesters' = [Requesters EXCEPT
                               ![i].state = "TERMINATED",
                               ![i].msgs = Requesters[i].msgs \ {msg}] 
-    /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs>>
+    /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs, Storage>>
     
 SendQueryTasks(i) == 
     /\ Requesters[i].state = "SEND_QUERY_TASKS"
@@ -87,18 +87,15 @@ SendQueryTasks(i) ==
           pubkey |-> Requesters[i].pubkey, 
           owner |-> Requesters[i].pubkey]}]
     /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
-    /\ UNCHANGED <<Workers, TSCs, USSC, USCs>>
-    
-GetFirstTask(msg) ==
-    CHOOSE t \in msg.tasks : \A y \in msg.tasks : 
-    t.taskId # y.taskId => t.taskId < y.taskId  
-    
+    /\ UNCHANGED <<Workers, TSCs, USSC, USCs, Storage>>
+     
 ReceiveQueryTasks_Success(i, msg) == 
     IF Cardinality(msg.tasks) = 0 
     THEN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                           ![i].tasks = msg.tasks,
                                           ![i].state = "TERMINATED"]
-    ELSE LET firstTask == GetFirstTask(msg)
+    ELSE LET firstTask == CHOOSE t \in msg.tasks : \A y \in msg.tasks : 
+                          t.taskId # y.taskId => t.taskId < y.taskId 
          IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                              ![i].tasks = msg.tasks \ {firstTask},
                                              ![i].unconfirmedWorkers = firstTask.participants, 
@@ -115,7 +112,7 @@ ReceiveQueryTasks(i) ==
           \/ /\ msg.type = "INVALID"
              /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                                  ![i].state = "SEND_QUERY_TASKS"]
-    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
 
 SendKey(i) ==
     /\ Requesters[i].state = "SEND_KEY"
@@ -127,7 +124,7 @@ SendKey(i) ==
                                                          pubkey |-> Requesters[i].pubkey, 
                                                          keyshare |-> "PlaceholderKeyshare"]}]
             /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
-    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>
+    /\ UNCHANGED <<TSSC, TSCs, USSC, USCs, Storage>>
 
 ReceiveKey(i) == 
     /\ Requesters[i].state = "RECV_KEY"
@@ -143,7 +140,7 @@ ReceiveKey(i) ==
                                                 ![i].state = IF Cardinality(Requesters[i].confirmedWorkers) + 1 = Cardinality(Requesters[i].currentTask.participants)
                                                              THEN "SEND_QUERY_HASHES"
                                                              ELSE "SEND_KEY"]
-    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
 
 SendQueryHashes(i) == 
     /\ Requesters[i].state = "SEND_QUERY_HASHES"
@@ -153,11 +150,11 @@ SendQueryHashes(i) ==
                     THEN [t EXCEPT !.msgs = t.msgs \union {[type |-> "QUERY_HASHES", pubkey |-> Requesters[i].pubkey]}]
                     ELSE t : t \in TSCs} 
         /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
-    /\ UNCHANGED <<Workers, TSSC, USSC, USCs>>
+    /\ UNCHANGED <<Workers, TSSC, USSC, USCs, Storage>>
     
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
-    /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs>> 
+    /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs, Storage>> 
 
 Terminated == 
     <>(\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
@@ -179,5 +176,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 10:10:05 CET 2024 by jungc
+\* Last modified Sun Feb 25 11:06:32 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc
