@@ -8,13 +8,13 @@ TSCInit == TSCs = {}
 GetIndex(task, allTasks) == 
     CHOOSE i \in DOMAIN allTasks : allTasks[i] = task
     
-AddFields(struct, id, owner) == 
-    struct @@ [taskId |-> id,
-               pubkey |-> ToString(NextPubkey + id),
+AddFields(struct, owner) == 
+    struct @@ [taskId |-> Cardinality(TSCs) + struct.id,
+               pubkey |-> ToString(NextPubkey + struct.id-1),
                category |-> "Placeholder",
                state |-> "Available",
                owner |-> owner,
-               participants |-> <<>>,
+               participants |-> {},
                numParticipants |-> 1,
                globalReputationThreshold |-> 0,
                expertiseReputationThreshold |-> 0,
@@ -23,9 +23,7 @@ AddFields(struct, id, owner) ==
                msgs |-> {}]
 
 TSCPostTasks(tasks, owner) == 
-    LET addTSCs == {AddFields(s, i, owner) : 
-                    s \in tasks, 
-                    i \in Cardinality(TSCs)..(Cardinality(TSCs)+Cardinality(tasks)-1)}    
+    LET addTSCs == {AddFields(t, owner) : t \in tasks} 
     IN /\ TSCs' = TSCs \union addTSCs
        /\ NextPubkey' = NextPubkey + Cardinality(tasks) 
     
@@ -40,14 +38,14 @@ TSCSendResponse(pubkey, message) ==
        /\ UNCHANGED <<Requesters>>
 
 TSCConfirmTask_CanParticipate(msg, tsc) == 
-    /\ Len(tsc.participants) < tsc.numParticipants
+    /\ Cardinality(tsc.participants) < tsc.numParticipants
     /\ tsc.checkQ[USSCGetUser(msg.pubkey, "WORKER").info.reputation]
     
 TSCConfirmTask_AddParticipant(msg, tsc) == 
     /\ TSCs' = {IF t.taskId = tsc.taskId
                 THEN [t EXCEPT !.msgs = t.msgs \ {msg}, 
-                               !.participants = tsc.participants \o <<USSCGetUser(msg.pubkey, "WORKER").info.pubkey>>,
-                               !.state = IF Len(tsc.participants) + 1 = tsc.numParticipants
+                               !.participants = tsc.participants \union {USSCGetUser(msg.pubkey, "WORKER").info.pubkey},
+                               !.state = IF Cardinality(tsc.participants) + 1 = tsc.numParticipants
                                          THEN "Unavailable" ELSE "Available"]
                 ELSE t : t \in TSCs}
               
@@ -84,5 +82,5 @@ TSCNext == \/ /\ Cardinality(TSCs) = 0
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 17:02:50 CET 2024 by jungc
+\* Last modified Sun Feb 25 08:21:17 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

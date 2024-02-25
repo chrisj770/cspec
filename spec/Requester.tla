@@ -27,8 +27,9 @@ Init ==
                     state |-> "SEND_REGISTER",
                     pubkey |-> "",
                     tasks |-> Tasks,
-                    unconfirmedWorkers |-> <<>>, 
-                    confirmedWorkers |-> <<>>]]
+                    currentTask |-> NULL,
+                    unconfirmedWorkers |-> {}, 
+                    confirmedWorkers |-> {}]]
                     
 SendRegister(i) == 
     /\ Requesters[i].state = "SEND_REGISTER"
@@ -92,16 +93,17 @@ GetFirstTask(msg) ==
     t.taskId # y.taskId => t.taskId < y.taskId  
     
 ReceiveQueryTasks_Success(i, msg) == 
-    Requesters' = [Requesters EXCEPT 
-                    ![i].msgs = Requesters[i].msgs \ {msg},
-                    ![i].tasks = msg.tasks,
-                    ![i].unconfirmedWorkers = IF Cardinality(msg.tasks) > 0 
-                                              THEN GetFirstTask(msg).participants 
-                                              ELSE <<>>, 
-                    ![i].confirmedWorkers = <<>>,
-                    ![i].state = IF Cardinality(msg.tasks) > 0 
-                                 THEN "SEND_KEY"
-                                 ELSE "TERMINATED"]
+    IF Cardinality(msg.tasks) = 0 
+    THEN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                          ![i].tasks = msg.tasks,
+                                          ![i].state = "TERMINATED"]
+    ELSE LET firstTask == GetFirstTask(msg)
+         IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                             ![i].tasks = msg.tasks \ {firstTask},
+                                             ![i].unconfirmedWorkers = firstTask.participants, 
+                                             ![i].confirmedWorkers = {},
+                                             ![i].currentTask = firstTask,
+                                             ![i].state = "SEND_KEY"]
     
 ReceiveQueryTasks(i) == 
     /\ Requesters[i].state = "RECV_QUERY_TASKS"
@@ -113,17 +115,12 @@ ReceiveQueryTasks(i) ==
              /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                                  ![i].state = "SEND_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
-    
-GetActiveTask(i) ==
-    CHOOSE t \in Requesters[i].tasks : 
-           \A y \in Requesters[i].tasks : 
-           t.taskId # y.taskId => t.taskId < y.taskId
-    
+
 SendKey(i) ==
     /\ Requesters[i].state = "SEND_KEY"
-    /\ Len(Requesters[i].unconfirmedWorkers) > 0
-    /\ LET participantPubkey == Head(Requesters[i].unconfirmedWorkers) IN 
-        /\ LET wid == CHOOSE w \in 1..NumWorkers : Workers[w].pubkey = participantPubkey IN 
+    /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
+    /\ LET nextWorkerPubkey == CHOOSE r \in Requesters[i].unconfirmedWorkers : TRUE IN 
+        /\ LET wid == CHOOSE w \in 1..NumWorkers : Workers[w].pubkey = nextWorkerPubkey IN 
             /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union 
                                                         {[type |-> "SEND_KEY",
                                                          pubkey |-> Requesters[i].pubkey, 
@@ -133,16 +130,18 @@ SendKey(i) ==
 
 ReceiveKey(i) == 
     /\ Requesters[i].state = "RECV_KEY"
-    /\ Len(Requesters[i].unconfirmedWorkers) > 0
+    /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
     /\ \E msg \in Requesters[i].msgs : /\ msg.type = "ACK" 
-                                       /\ msg.pubkey = Head(Requesters[i].unconfirmedWorkers)
+                                       /\ msg.pubkey \in Requesters[i].unconfirmedWorkers
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : /\ m.type = "ACK" 
-                                                    /\ m.pubkey = Head(Requesters[i].unconfirmedWorkers) IN 
-        /\ Requesters' = [Requesters EXCEPT ![i].unconfirmedWorkers = Tail(Requesters[i].unconfirmedWorkers),
-                                            ![i].confirmedWorkers = Head(Requesters[i].unconfirmedWorkers),
-                                            ![i].state = IF Len(Requesters[i].confirmedWorkers) + 1 = Len(GetActiveTask(i).participants)
-                                                         THEN "QUERY_HASHES"
-                                                         ELSE "SEND_KEY"]
+                                                    /\ m.pubkey \in Requesters[i].unconfirmedWorkers IN 
+        LET worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.pubkey IN 
+            /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                                ![i].unconfirmedWorkers = Requesters[i].unconfirmedWorkers \ {worker},
+                                                ![i].confirmedWorkers = Requesters[i].confirmedWorkers \union {worker},
+                                                ![i].state = IF Cardinality(Requesters[i].confirmedWorkers) + 1 = Cardinality(Requesters[i].currentTask.participants)
+                                                             THEN "QUERY_HASHES"
+                                                             ELSE "SEND_KEY"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
     
 Terminating == 
@@ -163,8 +162,10 @@ Next ==
         \/ ReceiveQueryTasks(requester)
         \/ ReceiveKey(requester)
     \/ Terminating
+    
+
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 16:58:47 CET 2024 by jungc
+\* Last modified Sun Feb 25 09:03:21 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

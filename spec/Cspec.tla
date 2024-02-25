@@ -1,5 +1,5 @@
 ------------------------------- MODULE Cspec -------------------------------
-EXTENDS Common
+EXTENDS FiniteSets, Common
 
 CONSTANTS
     Tasks,
@@ -31,8 +31,9 @@ Next == /\ \/ /\ \/ Worker!Next
 Spec == Init /\ [][Next]_vars
 
 (* ------------------------------------------------------- *)
+TSCMaximum == Cardinality(TSCs) <= NumRequesters * Cardinality(Tasks) 
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 10:43:48 CET 2024 by jungc
+\* Last modified Sat Feb 24 20:56:58 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc

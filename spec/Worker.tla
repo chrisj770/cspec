@@ -1,5 +1,5 @@
 ------------------------------- MODULE Worker -------------------------------
-EXTENDS FiniteSets, Sequences, Common, Integers
+EXTENDS FiniteSets, Sequences, Common, TLC, Integers
     
 TypeOK == 
     /\ \A worker \in Workers : [Workers.state -> 
@@ -29,6 +29,7 @@ Init ==
                 pubkey |-> "",
                 unconfirmedTasks |-> {}, 
                 confirmedTasks |-> {}, 
+                currentTask |-> NULL,
                 keyshare |-> NULL]]
     
 SendRegister(i) == 
@@ -72,7 +73,7 @@ ReceiveQueryTasks_Success(i, msg) ==
                              THEN "SEND_CONFIRM_TASK"
                              ELSE "TERMINATED"]
     
-ReceiveQueryTasks(i) == 
+ReceiveQueryTasks(i) ==
     /\ Workers[i].state = "RECV_QUERY_TASKS"
     /\ \E msg \in Workers[i].msgs : msg.src = "TSSC"
     /\ LET msg == CHOOSE m \in Workers[i].msgs : m.src = "TSSC" IN
@@ -104,14 +105,18 @@ ReceiveConfirmTask_Failed(i, msg, task) ==
                                   ELSE "SEND_QUERY_TASK"
                              ELSE "SEND_CONFIRM_TASK"]
 
-ReceiveConfirmTask_Success(i, msg, task) ==   
-    Workers' = [Workers EXCEPT 
-                ![i].msgs = Workers[i].msgs \ {msg},
-                ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
-                ![i].confirmedTasks = Workers[i].confirmedTasks \union {task},
-                ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
-                             THEN "RECV_SEND_KEY"
-                             ELSE "SEND_CONFIRM_TASK"]
+ReceiveConfirmTask_Success(i, msg, task) == 
+    LET currentTask == CHOOSE t \in Workers[i].confirmedTasks \union {task} :
+                           \A y \in Workers[i].confirmedTasks \union {task} : 
+                           t.taskId # y.taskId => t.taskId < y.taskId IN 
+        Workers' = [Workers EXCEPT 
+                    ![i].msgs = Workers[i].msgs \ {msg},
+                    ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
+                    ![i].confirmedTasks = (Workers[i].confirmedTasks \union {task}) \ {currentTask},
+                    ![i].currentTask = currentTask,
+                    ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
+                                 THEN "RECV_SEND_KEY"
+                                 ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask(i) == 
     /\ Workers[i].state = "RECV_CONFIRM_TASK"
@@ -123,23 +128,18 @@ ReceiveConfirmTask(i) ==
         \/ /\ msg.type = "CONFIRM_SUCCESS" 
            /\ ReceiveConfirmTask_Success(i, msg, task)
     /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
-    
-GetActiveTask(i) ==
-    CHOOSE t \in Workers[i].confirmedTasks : 
-           \A y \in Workers[i].confirmedTasks : 
-           t.taskId # y.taskId => t.taskId < y.taskId
 
 ReceiveSendKey(i) == 
     /\ Workers[i].state = "RECV_SEND_KEY"
     /\ Workers[i].keyshare = NULL
-    /\ LET activeTask == GetActiveTask(i) IN 
-        /\ \E msg \in Workers[i].msgs : msg.type = "SEND_KEY" /\ msg.pubkey = activeTask.owner  
-        /\ LET msg == CHOOSE m \in Workers[i].msgs : m.type = "SEND_KEY" /\ m.pubkey = activeTask.owner IN 
-            /\ LET rid == CHOOSE r \in 1..NumRequesters : Requesters[r].pubkey = msg.pubkey IN
-                /\ Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union
-                                                                  {[type |-> "ACK", pubkey |-> Workers[i].pubkey]}]
-            /\ Workers' = [Workers EXCEPT ![i].keyshare = msg.keyshare, 
-                                          ![i].state = "COMPUTE"] 
+    /\ \E msg \in Workers[i].msgs : msg.type = "SEND_KEY" /\ msg.pubkey = Workers[i].currentTask.owner  
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : m.type = "SEND_KEY" /\ m.pubkey = Workers[i].currentTask.owner IN 
+        /\ LET rid == CHOOSE r \in 1..NumRequesters : Requesters[r].pubkey = msg.pubkey IN
+            /\ Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union
+                                                              {[type |-> "ACK", pubkey |-> Workers[i].pubkey]}]
+        /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
+                                      ![i].keyshare = msg.keyshare, 
+                                      ![i].state = "COMPUTE"] 
     /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>
     
     
@@ -161,5 +161,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 16:55:58 CET 2024 by jungc
+\* Last modified Sun Feb 25 09:03:35 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc
