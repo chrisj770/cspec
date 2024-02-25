@@ -49,7 +49,7 @@ QueryTasks_Worker(msg) ==
 TSSCReceiveQueryTasks_Requester == 
     /\ \E msg \in TSSC.msgs : QueryTasks_Requester(msg)
     /\ LET msg == CHOOSE m \in TSSC.msgs : QueryTasks_Requester(m) IN 
-        /\ LET matchingTSCs == TSCs IN 
+        /\ LET matchingTSCs == {t \in TSCs : t.owner = msg.owner} IN 
            TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> matchingTSCs])
         /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}] 
     /\ UNCHANGED <<TSCs, USSC, USCs>> 
@@ -61,22 +61,6 @@ TSSCReceiveQueryTasks_Worker ==
         /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}]  
     /\ UNCHANGED <<TSCs, USSC, USCs>>            
 
-(*
-TSSCReceiveQueryTasks == 
-    /\ \E msg \in TSSC.msgs : msg.type = "QUERY_TASKS"
-    /\ LET msg == CHOOSE m \in TSSC.msgs : m.type = "QUERY_TASKS" IN     
-        \/ /\ Time < TaskPostDeadline 
-           /\ TSSCSendResponse(msg.pubkey, [type |-> "INVALID", src |-> "TSSC"])
-           /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}] 
-        \/ /\ Time >= TaskPostDeadline
-           /\ \/ /\ USSCCheckUser(msg.pubkey, "REQUESTER")
-                 /\ TSSCReceiveQueryTasks_Requester(msg)
-              \/ /\ USSCCheckUser(msg.pubkey, "WORKER")
-                 /\ TSSCReceiveQueryTasks_Worker(msg)
-           /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}, !.state = "WORKING"]
-    /\ UNCHANGED <<TSCs, USSC, USCs>>
-*) 
- 
 TSSCNext == 
     \/ TSSCReceivePostTasks
     \/ /\ \/ TSSCReceiveQueryTasks_Requester
@@ -85,5 +69,5 @@ TSSCNext ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 08:42:28 CET 2024 by jungc
+\* Last modified Sun Feb 25 11:47:28 CET 2024 by jungc
 \* Created Thu Feb 22 09:13:46 CET 2024 by jungc

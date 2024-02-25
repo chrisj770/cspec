@@ -30,7 +30,9 @@ Init ==
                     tasks |-> Tasks,
                     currentTask |-> NULL,
                     unconfirmedWorkers |-> {}, 
-                    confirmedWorkers |-> {}]]
+                    confirmedWorkers |-> {},
+                    unconfirmedHashes |-> {},
+                    confirmedHashes |-> {}]]
                     
 SendRegister(i) == 
     /\ Requesters[i].state = "SEND_REGISTER"
@@ -152,6 +154,17 @@ SendQueryHashes(i) ==
         /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
     /\ UNCHANGED <<Workers, TSSC, USSC, USCs, Storage>>
     
+ReceiveQueryHashes(i) == 
+    /\ Requesters[i].state = "RECV_QUERY_HASHES"
+    /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+    /\ \E msg \in Requesters[i].msgs : msg.type = "HASHES" /\ msg.pubkey = Requesters[i].currentTask.pubkey
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : m.type = "HASHES" /\ m.pubkey = Requesters[i].currentTask.pubkey IN 
+        /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                            ![i].state = "SEND_QUERY_DATA", 
+                                            ![i].unconfirmedHashes = msg.hashes,
+                                            ![i].confirmedHashes = {}]
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
+    
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
     /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs, Storage>> 
@@ -170,11 +183,12 @@ Next ==
         \/ ReceivePostTasks(requester)
         \/ ReceiveQueryTasks(requester)
         \/ ReceiveKey(requester)
+        \/ ReceiveQueryHashes(requester)
     \/ Terminating
     
 
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 11:06:32 CET 2024 by jungc
+\* Last modified Sun Feb 25 11:45:16 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc
