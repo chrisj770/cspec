@@ -13,14 +13,16 @@ TypeOK ==
          "SEND_QUERY_TASKS",    \* Request a list of active tasks via TSSC
          "RECV_QUERY_TASKS",    \* Receive a list of active tasks from TSSC, or INVALID
          "SEND_KEY",            \* Attempt to send key-share to WORKER for single task
-         "RECV_KEY",            \* Receive acknowledgement for key-share
+         "RECV_KEY",            \* Receive acknowledgement for key-share from WORKER 
          "SEND_QUERY_HASHES",   \* Request list of all hashes from TSC
          "RECV_QUERY_HASHES",   \* Receive list of all hashes from TSC
-         "QUERY_DATA",          \* Request all relevant sensory data from STORAGE
+         "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
+         "RECV_QUERY_DATA",     \* Receive all relevant sensory data from STORAGE
          "EVALUATE",            \* Run evaluation process
-         "SUBMIT_EVAL",         \* Attempt to submit results of evaluation via TSC
+         "SEND_SUBMIT_EVAL",    \* Attempt to submit results of evaluation via TSC
+         "RECV_SUBMIT_EVAL",     \* Receive acknowledgement for evaluation results from TSC
          "SEND_WEIGHTS",        \* Attempt to broadcast weights received from evaluation
-         "TERMINATED"}]       
+         "TERMINATED"}]  
 
 Init == 
     Requesters = [r \in 1..NumRequesters |-> [
@@ -31,8 +33,8 @@ Init ==
                     currentTask |-> NULL,
                     unconfirmedWorkers |-> {}, 
                     confirmedWorkers |-> {},
-                    unconfirmedHashes |-> {},
-                    confirmedHashes |-> {}]]
+                    hashes |-> {},
+                    data |-> {}]]
 
 SendRegister_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_REGISTER"
@@ -142,7 +144,9 @@ ReceiveQueryTasks(i) ==
 
 SendKey_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_KEY"
+    /\ Requesters[i].currentTask # NULL
     /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
+    /\ Time < Requesters[i].currentTask.Sd
 
 SendKey(i) ==
     /\ SendKey_IsEnabled(i)
@@ -161,8 +165,10 @@ ReceiveKey_MessageFormat(i, msg) ==
 
 ReceiveKey_IsEnabled(i) == 
     /\ Requesters[i].state = "RECV_KEY"
+    /\ Requesters[i].currentTask # NULL    
     /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
     /\ \E msg \in Requesters[i].msgs : ReceiveKey_MessageFormat(i, msg)
+    /\ Time < Requesters[i].currentTask.Sd
     
 ReceiveKey(i) == 
     /\ ReceiveKey_IsEnabled(i)
@@ -178,7 +184,9 @@ ReceiveKey(i) ==
 
 SendQueryHashes_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_QUERY_HASHES"
+    /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+    /\ Time < Requesters[i].currentTask.Pd
 
 SendQueryHashes(i) == 
     /\ SendQueryHashes_IsEnabled(i)
@@ -196,31 +204,66 @@ ReceiveQueryHashes_MessageFormat(i, msg) ==
 
 ReceiveQueryHashes_IsEnabled(i) == 
     /\ Requesters[i].state = "RECV_QUERY_HASHES"
+    /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
     /\ \E msg \in Requesters[i].msgs : ReceiveQueryHashes_MessageFormat(i, msg)
+    /\ Time < Requesters[i].currentTask.Pd
 
 ReceiveQueryHashes(i) == 
     /\ ReceiveQueryHashes_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryHashes_MessageFormat(i, m)
        IN /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                               ![i].state = "SEND_QUERY_DATA", 
-                                              ![i].unconfirmedHashes = msg.hashes,
-                                              ![i].confirmedHashes = {}]
+                                              ![i].hashes = msg.hashes]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
 
 
 SendQueryData_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_QUERY_DATA"
+    /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+    /\ Time < Requesters[i].currentTask.Pd
 
 SendQueryData(i) == 
     /\ SendQueryData_IsEnabled(i)
     /\ LET request == [type |-> "QUERY_DATA", 
                       pubkey |-> Requesters[i].pubkey, 
-                      hashes |-> Requesters[i].unconfirmedHashes]
+                      hashes |-> Requesters[i].hashes]
        IN /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {request}]
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_DATA"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>> 
+    
+ReceiveQueryData_MessageFormat(i, msg) == 
+    /\ msg.type = "DATA"
+    /\ msg.src = "STORAGE"
+    /\ "data" \in DOMAIN msg
+
+ReceiveQueryData_IsEnabled(i) ==
+    /\ Requesters[i].state = "RECV_QUERY_DATA"
+    /\ Requesters[i].currentTask # NULL
+    /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+    /\ \E msg \in Requesters[i].msgs : ReceiveQueryData_MessageFormat(i, msg)
+    /\ Time < Requesters[i].currentTask.Pd
+
+ReceiveQueryData(i) == 
+    /\ ReceiveQueryData_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryData_MessageFormat(i, m)
+       IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                           ![i].data = msg.data,
+                                           ![i].state = "EVALUATE"]
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
+    
+Evaluate_IsEnabled(i) == 
+    /\ Requesters[i].state = "EVALUATE"
+    /\ Requesters[i].currentTask # NULL
+    /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+    /\ Cardinality(Requesters[i].data) = Requesters[i].currentTask.numParticipants
+    /\ Time < Requesters[i].currentTask.Pd
+ 
+Evaluate(i) ==
+    /\ Evaluate_IsEnabled(i) 
+    /\ Requesters' = [Requesters EXCEPT ![i].state = "SUBMIT_EVAL"] \* TODO 
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
     
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
@@ -229,21 +272,52 @@ Terminating ==
 Terminated == 
     <>(\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
     
-    
-GetLastDeadline(r) ==
-    LET lastTask == CHOOSE t \in r.tasks : \A y \in r.tasks : t.Sd # y.Sd => t.Sd >= y.Sd
-    IN lastTask.Sd
+GetLastTaskDeadline(r) ==
+    LET lastTask == CHOOSE t \in r.tasks : \A y \in r.tasks : t.Td # y.Td => t.Td >= y.Td
+    IN lastTask.Td
                             
-EarlyStopping(i) == 
+EarlyTermination(i) == 
     LET r == Requesters[i] IN
-        IF \/ /\ r.state = "SEND_REGISTER"          \* Case 1: No tasks prior to registration     
+        IF \/ /\ r.state = "SEND_REGISTER"          \* Case 1: No tasks to submit prior to registration     
               /\ Cardinality(r.tasks) = 0 
-           \/ /\ r.state \in {"RECV_REGISTER",      \* Case 2: Registration/Post hangs before final task deadline
+           \/ /\ r.state \in {"RECV_REGISTER",      \* Case 2: Registration/Post hangs before Task deadline
                               "RECV_POST_TASKS", 
                               "RECV_QUERY_TASKS"}
-              /\ Time >= GetLastDeadline(r)
-        THEN Requesters' = [Requesters EXCEPT ![i].state = "TERMINATED"]
+              /\ Time >= GetLastTaskDeadline(r)
+        THEN /\ Requesters' = [Requesters EXCEPT ![i].state = "TERMINATED"]
+             /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>> 
         ELSE FALSE
+        
+TaskTimeout_Update(i) == 
+    LET r == Requesters[i]
+        nextTask == IF Cardinality(Requesters[i].tasks) = 0 THEN NULL ELSE 
+                    CHOOSE t \in r.tasks : \A y \in r.tasks : 
+                           t.taskId # y.taskId => t.taskId < y.taskId   
+    IN Requesters' = [Requesters EXCEPT 
+          ![i].state = IF nextTask = NULL THEN "TERMINATED" ELSE "SEND_KEY",
+          ![i].tasks = IF nextTask = NULL THEN r.tasks ELSE r.tasks \ {nextTask},
+          ![i].currentTask = nextTask,
+          ![i].unconfirmedWorkers = IF nextTask = NULL THEN {} ELSE nextTask.participants,
+          ![i].confirmedWorkers = {}, 
+          ![i].hashes = {},
+          ![i].data = {}]
+
+TaskTimeout(i) == 
+    /\ Requesters[i].currentTask # NULL
+    /\ LET r == Requesters[i] 
+           task == r.currentTask IN
+       IF \/ /\ Time >= task.Sd                     \* Case 1: Keys not sent/ACKed before Submission deadline
+             /\ r.state \in {"SEND_KEY", "RECV_KEY"}  
+          \/ /\ Time >= task.Pd
+             /\ r.state \in {"SEND_QUERY_HASHES",   \* Case 2: Evaluation not complete before Proving deadline
+                             "RECV_QUERY_HASHES",
+                             "SEND_QUERY_DATA",
+                             "RECV_QUERY_DATA",
+                             "EVALUATE",
+                             "SEND_SUBMIT_EVAL",
+                             "RECV_SUBMIT_EVAL"}
+       THEN TaskTimeout_Update(i) ELSE FALSE 
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
             
 Next == 
     \/ \E requester \in 1..NumRequesters : 
@@ -253,17 +327,18 @@ Next ==
         \/ SendKey(requester)
         \/ SendQueryHashes(requester)
         \/ SendQueryData(requester)
+        \/ Evaluate(requester)
         \/ ReceiveRegister(requester)        
         \/ ReceivePostTasks(requester)
         \/ ReceiveQueryTasks(requester)
         \/ ReceiveKey(requester)
         \/ ReceiveQueryHashes(requester)
-        \/ EarlyStopping(requester)
+        \/ ReceiveQueryData(requester)
+        \/ EarlyTermination(requester)
+        \/ TaskTimeout(requester)
     \/ Terminating
     
-
-
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 15:30:55 CET 2024 by jungc
+\* Last modified Sun Feb 25 16:33:57 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc
