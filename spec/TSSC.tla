@@ -1,5 +1,5 @@
 -------------------------------- MODULE TSSC --------------------------------
-EXTENDS Sequences, TSC, USSC, Common
+EXTENDS Sequences, TSC, Common
 
 CONSTANT TaskPostDeadline
 ASSUME TaskPostDeadline >= RegistrationDeadline
@@ -9,65 +9,56 @@ TSSCTypeOK ==
                     "WORKING"}
 
 TSSCInit == 
-    TSSC = [msgs |-> {}, 
-           state |-> "POST_TASKS"]        
-                    
-TSSCSendResponse(pubkey, message) == 
-    \/ /\ USSCCheckUser(pubkey, "REQUESTER")
-       /\ LET rid == CHOOSE key \in DOMAIN Requesters : Requesters[key].pubkey = pubkey IN
-            /\ Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union {message}]
-       /\ UNCHANGED <<Workers>>
-    \/ /\ USSCCheckUser(pubkey, "WORKER")
-       /\ LET wid == CHOOSE key \in DOMAIN Workers : Workers[key].pubkey = pubkey IN
-            /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
-       /\ UNCHANGED <<Requesters>>
-        
-TSSCReceivePostTasks == 
-    /\ \E msg \in TSSC.msgs : msg.type = "POST_TASKS"
-    /\ LET msg == CHOOSE m \in TSSC.msgs : m.type = "POST_TASKS" IN
-        \/ /\ Time < TaskPostDeadline 
-           /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}]
-           /\ TSCPostTasks(msg.tasks, msg.pubkey)
-           /\ TSSCSendResponse(msg.pubkey, [type |-> "ACK", src |-> "TSSC"])                                  
-        \/ /\ Time >= TaskPostDeadline
-           /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}, !.state = "WORKING"]
-           /\ TSSCSendResponse(msg.pubkey, [type |-> "INVALID", src |-> "TSSC"])
-           /\ UNCHANGED <<TSCs, NextPubkey>>
-    /\ UNCHANGED <<USSC, USCs>>
-    
-QueryTasks_Requester(msg) == 
-    /\ msg.type = "QUERY_TASKS" 
-    /\ USSCCheckUser(msg.pubkey, "REQUESTER")
-    /\ msg.owner # NULL
-    /\ \A t \in TSCs : t.owner = msg.owner => t.state = "Unavailable"
-    
-QueryTasks_Worker(msg) == 
-    /\ msg.type = "QUERY_TASKS" 
-    /\ USSCCheckUser(msg.pubkey, "WORKER")
-    /\ msg.owner = NULL
-    
-TSSCReceiveQueryTasks_Requester == 
-    /\ \E msg \in TSSC.msgs : QueryTasks_Requester(msg)
-    /\ LET msg == CHOOSE m \in TSSC.msgs : QueryTasks_Requester(m) IN 
-        /\ LET matchingTSCs == {t \in TSCs : t.owner = msg.owner} IN 
-           TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> matchingTSCs])
-        /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}] 
-    /\ UNCHANGED <<TSCs, USSC, USCs>> 
+    TSSC = [msgs |-> {}]    
+                   
+TSSCReceivePostTasks_MessageFormat(msg) == 
+    /\ msg.type = "POST_TASKS"
+    /\ IsRequester(msg.pubkey)
 
-TSSCReceiveQueryTasks_Worker == 
-    /\ \E msg \in TSSC.msgs : QueryTasks_Worker(msg)
-    /\ LET msg == CHOOSE m \in TSSC.msgs : QueryTasks_Worker(m) IN
-        /\ TSSCSendResponse(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> TSCs])
-        /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}]  
-    /\ UNCHANGED <<TSCs, USSC, USCs>>            
+TSSCReceivePostTasks_IsEnabled == 
+    /\ \E msg \in TSSC.msgs :TSSCReceivePostTasks_MessageFormat(msg)
+
+TSSCReceivePostTasks == 
+    /\ TSSCReceivePostTasks_IsEnabled
+    /\ LET msg == CHOOSE m \in TSSC.msgs : TSSCReceivePostTasks_MessageFormat(m) 
+       IN IF Time < TaskPostDeadline 
+          THEN /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}]
+               /\ TSCPostTasks(msg.tasks, msg.pubkey)
+               /\ SendMessage(msg.pubkey, [type |-> "ACK", src |-> "TSSC"])                                  
+          ELSE /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}]
+               /\ SendMessage(msg.pubkey, [type |-> "INVALID", src |-> "TSSC"])
+               /\ UNCHANGED <<TSCs, NextPubkey>>
+    /\ UNCHANGED <<Workers, USSC, USCs>>
+
+TSSCQueryTasks_MessageFormat(msg) == 
+    /\ msg.type = "QUERY_TASKS" 
+    /\ \/ /\ IsRequester(msg.pubkey)
+          /\ msg.owner # NULL
+          /\ \A t \in TSCs : t.owner = msg.owner => t.state = "Unavailable"
+       \/ /\ IsWorker(msg.pubkey)
+          /\ msg.owner = NULL
+
+TSSCQueryTasks_IsEnabled == 
+    /\ \E msg \in TSSC.msgs : TSSCQueryTasks_MessageFormat(msg)
+
+TSSCReceiveQueryTasks == 
+    /\ TSSCQueryTasks_IsEnabled
+    /\ LET msg == CHOOSE m \in TSSC.msgs : TSSCQueryTasks_MessageFormat(m)
+           matchingTSCs == IF IsWorker(msg.pubkey) THEN TSCs
+                           ELSE {t \in TSCs : t.owner = msg.owner} 
+       IN /\ SendMessage(msg.pubkey, [type |-> "TASKS",  src |-> "TSSC", tasks |-> matchingTSCs])
+          /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \ {msg}]
+          /\ IF IsRequester(msg.pubkey) 
+             THEN UNCHANGED <<Workers>>
+             ELSE UNCHANGED <<Requesters>> 
+    /\ UNCHANGED <<TSCs, USSC, USCs>>           
 
 TSSCNext == 
     \/ TSSCReceivePostTasks
-    \/ /\ \/ TSSCReceiveQueryTasks_Requester
-          \/ TSSCReceiveQueryTasks_Worker
+    \/ /\ TSSCReceiveQueryTasks
        /\ UNCHANGED <<NextPubkey>>
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 11:47:28 CET 2024 by jungc
+\* Last modified Sun Feb 25 15:10:15 CET 2024 by jungc
 \* Created Thu Feb 22 09:13:46 CET 2024 by jungc

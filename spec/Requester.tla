@@ -33,64 +33,90 @@ Init ==
                     confirmedWorkers |-> {},
                     unconfirmedHashes |-> {},
                     confirmedHashes |-> {}]]
-                    
-SendRegister(i) == 
+
+SendRegister_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_REGISTER"
-    /\ USSC' = [USSC EXCEPT !.msgs = USSC.msgs \union 
-        {[type |-> "REGISTER", 
-          userType |-> "REQUESTER", 
-          src |-> i]}]
-    /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_REGISTER"]
+            
+SendRegister(i) == 
+    /\ SendRegister_IsEnabled(i)
+    /\ LET request == [type |-> "REGISTER", 
+                      userType |-> "REQUESTER", 
+                      src |-> i]
+       IN /\ USSC' = [USSC EXCEPT !.msgs = USSC.msgs \union {request}]
+          /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_REGISTER"]
     /\ UNCHANGED <<Workers, USCs, TSSC, TSCs, Storage>>
+
+ReceiveRegister_MessageFormat(i, msg) == 
+    /\ msg.src = "USSC"
+    /\ msg.type \in {"REGISTERED", "NOT_REGISTERED"}
+
+ReceiveRegister_IsEnabled(i) == 
+    /\ Requesters[i].state = "RECV_REGISTER"
+    /\ \E msg \in Requesters[i].msgs : ReceiveRegister_MessageFormat(i, msg)
     
 ReceiveRegister(i) == 
-    /\ Requesters[i].state = "RECV_REGISTER"
-    /\ \E msg \in Requesters[i].msgs : msg.src = "USSC"
-    /\ LET msg == CHOOSE m \in Requesters[i].msgs : m.src = "USSC" IN
-       \/ /\ msg.type = "REGISTERED"
-          /\ Requesters' = [Requesters EXCEPT 
-                           ![i].pubkey = msg.pubkey, 
-                           ![i].msgs = Requesters[i].msgs \ {msg},
-                           ![i].state = "SEND_POST_TASKS"]
-       \/ /\ msg.type = "NOT_REGISTERED"
-          /\ Requesters' = [Requesters EXCEPT 
-                           ![i].msgs = Requesters[i].msgs \ {msg},
-                           ![i].state = "TERMINATED"]
+    /\ ReceiveRegister_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveRegister_MessageFormat(i, m)
+       IN Requesters' = [Requesters EXCEPT ![i].pubkey = IF msg.type = "REGISTERED"
+                                                         THEN msg.pubkey 
+                                                         ELSE Requesters[i].pubkey,
+                                           ![i].msgs = Requesters[i].msgs \ {msg},
+                                           ![i].state = IF msg.type = "REGISTERED"
+                                                        THEN "SEND_POST_TASKS"
+                                                        ELSE "TERMINATED"]
     /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs, Storage>>
+    
+SendPostTasks_IsEnabled(i) == 
+    /\ Requesters[i].state = "SEND_POST_TASKS"
     
 SendPostTasks(i) == 
-    /\ Requesters[i].state = "SEND_POST_TASKS"
-    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \union
-        {[type |-> "POST_TASKS", 
-          pubkey |-> Requesters[i].pubkey, 
-          tasks |-> Requesters[i].tasks]}]
-    /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_POST_TASKS"]
+    /\ SendPostTasks_IsEnabled(i) 
+    /\ LET request == [type |-> "POST_TASKS", 
+                      pubkey |-> Requesters[i].pubkey, 
+                      tasks |-> Requesters[i].tasks]
+       IN /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \union {request}]
+          /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_POST_TASKS"]
     /\ UNCHANGED <<Workers, TSCs, USSC, USCs, Storage>>
+
+ReceivePostTasks_MessageFormat(i, msg) == 
+    /\ msg.src = "TSSC"
+    /\ msg.type \in {"ACK", "INVALID"}
+
+ReceivePostTasks_IsEnabled(i) == 
+    /\ Requesters[i].state = "RECV_POST_TASKS"
+    /\ \E msg \in Requesters[i].msgs: ReceivePostTasks_MessageFormat(i, msg)
     
 ReceivePostTasks(i) == 
-    /\ Requesters[i].state = "RECV_POST_TASKS"
-    /\ \E msg \in Requesters[i].msgs: msg.src = "TSSC"
-    /\ \/ LET msg == CHOOSE m \in Requesters[i].msgs : m.src = "TSSC" IN 
-          \/ /\ msg.type = "ACK"
-             /\ Requesters' = [Requesters EXCEPT
-                              ![i].tasks = {},
-                              ![i].state = "SEND_QUERY_TASKS",
-                              ![i].msgs = Requesters[i].msgs \ {msg}]
-          \/ /\ msg.type = "INVALID"
-             /\ Requesters' = [Requesters EXCEPT
-                              ![i].state = "TERMINATED",
-                              ![i].msgs = Requesters[i].msgs \ {msg}] 
+    /\ ReceivePostTasks_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceivePostTasks_MessageFormat(i, m) 
+       IN Requesters' = [Requesters EXCEPT ![i].tasks = IF msg.type # "ACK" THEN {}
+                                                        ELSE Requesters[i].tasks,
+                                           ![i].state = IF msg.type = "ACK" 
+                                                        THEN "SEND_QUERY_TASKS"
+                                                        ELSE "TERMINATED",
+                                           ![i].msgs = Requesters[i].msgs \ {msg}]
     /\ UNCHANGED <<Workers, USSC, USCs, TSSC, TSCs, Storage>>
     
-SendQueryTasks(i) == 
+SendQueryTasks_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_QUERY_TASKS"
-    /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \union
-        {[type |-> "QUERY_TASKS", 
-          pubkey |-> Requesters[i].pubkey, 
-          owner |-> Requesters[i].pubkey]}]
-    /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
+    
+SendQueryTasks(i) == 
+    /\ SendQueryTasks_IsEnabled(i)
+    /\ LET request == [type |-> "QUERY_TASKS", 
+                      pubkey |-> Requesters[i].pubkey, 
+                      owner |-> Requesters[i].pubkey]
+       IN /\ TSSC' = [TSSC EXCEPT !.msgs = TSSC.msgs \union {request}]
+          /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, TSCs, USSC, USCs, Storage>>
      
+ReceiveQueryTasks_MessageFormat(i, msg) == 
+    /\ msg.src = "TSSC" 
+    /\ msg.type \in {"TASKS", "INVALID"}
+
+ReceiveQueryTasks_IsEnabled(i) ==
+    /\ Requesters[i].state = "RECV_QUERY_TASKS"
+    /\ \E msg \in Requesters[i].msgs: ReceiveQueryTasks_MessageFormat(i, msg)
+    
 ReceiveQueryTasks_Success(i, msg) == 
     IF Cardinality(msg.tasks) = 0 
     THEN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
@@ -104,66 +130,97 @@ ReceiveQueryTasks_Success(i, msg) ==
                                              ![i].confirmedWorkers = {},
                                              ![i].currentTask = firstTask,
                                              ![i].state = "SEND_KEY"]
-    
+     
 ReceiveQueryTasks(i) == 
-    /\ Requesters[i].state = "RECV_QUERY_TASKS"
-    /\ \E msg \in Requesters[i].msgs: msg.src = "TSSC"
-    /\ \/ LET msg == CHOOSE m \in Requesters[i].msgs : m.src = "TSSC" IN
-          \/ /\ msg.type = "TASKS"
-             /\ ReceiveQueryTasks_Success(i, msg)
-          \/ /\ msg.type = "INVALID"
-             /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                                 ![i].state = "SEND_QUERY_TASKS"]
+    /\ ReceiveQueryTasks_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryTasks_MessageFormat(i, m) 
+       IN IF msg.type = "TASKS"
+          THEN ReceiveQueryTasks_Success(i, msg)
+          ELSE Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                                ![i].state = "SEND_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
 
-SendKey(i) ==
+SendKey_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_KEY"
     /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
-    /\ LET nextWorkerPubkey == CHOOSE r \in Requesters[i].unconfirmedWorkers : TRUE IN 
-        /\ LET wid == CHOOSE w \in 1..NumWorkers : Workers[w].pubkey = nextWorkerPubkey IN 
-            /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union 
-                                                        {[type |-> "SEND_KEY",
-                                                         pubkey |-> Requesters[i].pubkey, 
-                                                         keyshare |-> "PlaceholderKeyshare"]}]
-            /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
+
+SendKey(i) ==
+    /\ SendKey_IsEnabled(i)
+    /\ LET nextWorkerPubkey == CHOOSE r \in Requesters[i].unconfirmedWorkers : TRUE 
+           wid == CHOOSE w \in 1..NumWorkers : Workers[w].pubkey = nextWorkerPubkey
+           request == [type |-> "SEND_KEY", 
+                      pubkey |-> Requesters[i].pubkey, 
+                      keyshare |-> "PlaceholderKeyshare"]
+       IN /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {request}]
+          /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
     /\ UNCHANGED <<TSSC, TSCs, USSC, USCs, Storage>>
 
-ReceiveKey(i) == 
+ReceiveKey_MessageFormat(i, msg) == 
+    /\ msg.type = "ACK" 
+    /\ msg.pubkey \in Requesters[i].unconfirmedWorkers
+
+ReceiveKey_IsEnabled(i) == 
     /\ Requesters[i].state = "RECV_KEY"
     /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
-    /\ \E msg \in Requesters[i].msgs : /\ msg.type = "ACK" 
-                                       /\ msg.pubkey \in Requesters[i].unconfirmedWorkers
-    /\ LET msg == CHOOSE m \in Requesters[i].msgs : /\ m.type = "ACK" 
-                                                    /\ m.pubkey \in Requesters[i].unconfirmedWorkers IN 
-        /\ LET worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.pubkey IN 
-            /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                                ![i].unconfirmedWorkers = Requesters[i].unconfirmedWorkers \ {worker},
-                                                ![i].confirmedWorkers = Requesters[i].confirmedWorkers \union {worker},
-                                                ![i].state = IF Cardinality(Requesters[i].confirmedWorkers) + 1 = Cardinality(Requesters[i].currentTask.participants)
-                                                             THEN "SEND_QUERY_HASHES"
-                                                             ELSE "SEND_KEY"]
+    /\ \E msg \in Requesters[i].msgs : ReceiveKey_MessageFormat(i, msg)
+    
+ReceiveKey(i) == 
+    /\ ReceiveKey_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveKey_MessageFormat(i, m) 
+           worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.pubkey 
+       IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                           ![i].unconfirmedWorkers = Requesters[i].unconfirmedWorkers \ {worker},
+                                           ![i].confirmedWorkers = Requesters[i].confirmedWorkers \union {worker},
+                                           ![i].state = IF Cardinality(Requesters[i].confirmedWorkers) + 1 = Cardinality(Requesters[i].currentTask.participants)
+                                                        THEN "SEND_QUERY_HASHES"
+                                                        ELSE "SEND_KEY"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
 
-SendQueryHashes(i) == 
+SendQueryHashes_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_QUERY_HASHES"
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
-    /\ LET tsc == CHOOSE t \in TSCs : t.pubkey = Requesters[i].currentTask.pubkey IN 
-        /\ TSCs' = {IF t.taskId = Requesters[i].currentTask.taskId 
-                    THEN [t EXCEPT !.msgs = t.msgs \union {[type |-> "QUERY_HASHES", pubkey |-> Requesters[i].pubkey]}]
-                    ELSE t : t \in TSCs} 
-        /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
+
+SendQueryHashes(i) == 
+    /\ SendQueryHashes_IsEnabled(i)
+    /\ LET tsc == CHOOSE t \in TSCs : t.pubkey = Requesters[i].currentTask.pubkey
+           request == [type |-> "QUERY_HASHES", pubkey |-> Requesters[i].pubkey] 
+       IN /\ TSCs' = {IF t.taskId = Requesters[i].currentTask.taskId 
+                      THEN [t EXCEPT !.msgs = t.msgs \union {request}]
+                      ELSE t : t \in TSCs} 
+          /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
     /\ UNCHANGED <<Workers, TSSC, USSC, USCs, Storage>>
     
-ReceiveQueryHashes(i) == 
+ReceiveQueryHashes_MessageFormat(i, msg) == 
+    /\ msg.type = "HASHES" 
+    /\ msg.pubkey = Requesters[i].currentTask.pubkey
+
+ReceiveQueryHashes_IsEnabled(i) == 
     /\ Requesters[i].state = "RECV_QUERY_HASHES"
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
-    /\ \E msg \in Requesters[i].msgs : msg.type = "HASHES" /\ msg.pubkey = Requesters[i].currentTask.pubkey
-    /\ LET msg == CHOOSE m \in Requesters[i].msgs : m.type = "HASHES" /\ m.pubkey = Requesters[i].currentTask.pubkey IN 
-        /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                            ![i].state = "SEND_QUERY_DATA", 
-                                            ![i].unconfirmedHashes = msg.hashes,
-                                            ![i].confirmedHashes = {}]
+    /\ \E msg \in Requesters[i].msgs : ReceiveQueryHashes_MessageFormat(i, msg)
+
+ReceiveQueryHashes(i) == 
+    /\ ReceiveQueryHashes_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryHashes_MessageFormat(i, m)
+       IN /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                              ![i].state = "SEND_QUERY_DATA", 
+                                              ![i].unconfirmedHashes = msg.hashes,
+                                              ![i].confirmedHashes = {}]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs, Storage>>
+
+
+SendQueryData_IsEnabled(i) == 
+    /\ Requesters[i].state = "SEND_QUERY_DATA"
+    /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+
+SendQueryData(i) == 
+    /\ SendQueryData_IsEnabled(i)
+    /\ LET request == [type |-> "QUERY_DATA", 
+                      pubkey |-> Requesters[i].pubkey, 
+                      hashes |-> Requesters[i].unconfirmedHashes]
+       IN /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {request}]
+          /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_DATA"]
+    /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>> 
     
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
@@ -171,6 +228,22 @@ Terminating ==
 
 Terminated == 
     <>(\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
+    
+    
+GetLastDeadline(r) ==
+    LET lastTask == CHOOSE t \in r.tasks : \A y \in r.tasks : t.Sd # y.Sd => t.Sd >= y.Sd
+    IN lastTask.Sd
+                            
+EarlyStopping(i) == 
+    LET r == Requesters[i] IN
+        IF \/ /\ r.state = "SEND_REGISTER"          \* Case 1: No tasks prior to registration     
+              /\ Cardinality(r.tasks) = 0 
+           \/ /\ r.state \in {"RECV_REGISTER",      \* Case 2: Registration/Post hangs before final task deadline
+                              "RECV_POST_TASKS", 
+                              "RECV_QUERY_TASKS"}
+              /\ Time >= GetLastDeadline(r)
+        THEN Requesters' = [Requesters EXCEPT ![i].state = "TERMINATED"]
+        ELSE FALSE
             
 Next == 
     \/ \E requester \in 1..NumRequesters : 
@@ -179,16 +252,18 @@ Next ==
         \/ SendQueryTasks(requester)
         \/ SendKey(requester)
         \/ SendQueryHashes(requester)
+        \/ SendQueryData(requester)
         \/ ReceiveRegister(requester)        
         \/ ReceivePostTasks(requester)
         \/ ReceiveQueryTasks(requester)
         \/ ReceiveKey(requester)
         \/ ReceiveQueryHashes(requester)
+        \/ EarlyStopping(requester)
     \/ Terminating
     
 
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 11:45:16 CET 2024 by jungc
+\* Last modified Sun Feb 25 15:30:55 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

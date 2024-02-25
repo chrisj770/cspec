@@ -12,6 +12,7 @@ Init ==
     /\ TSCInit
     /\ USSCInit
     /\ USCInit
+    /\ NextPubkey = 1
     
 Next == 
     \/ /\ TSCNext
@@ -21,5 +22,5 @@ Next ==
    
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 20:55:19 CET 2024 by jungc
+\* Last modified Sun Feb 25 14:10:49 CET 2024 by jungc
 \* Created Fri Feb 23 15:36:50 CET 2024 by jungc
