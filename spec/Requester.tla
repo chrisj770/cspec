@@ -14,7 +14,8 @@ TypeOK ==
          "RECV_QUERY_TASKS",    \* Receive a list of active tasks from TSSC, or INVALID
          "SEND_KEY",            \* Attempt to send key-share to WORKER for single task
          "RECV_KEY",            \* Receive acknowledgement for key-share
-         "QUERY_HASHES",        \* Request list of all hashes from TSC
+         "SEND_QUERY_HASHES",   \* Request list of all hashes from TSC
+         "RECV_QUERY_HASHES",   \* Receive list of all hashes from TSC
          "QUERY_DATA",          \* Request all relevant sensory data from STORAGE
          "EVALUATE",            \* Run evaluation process
          "SUBMIT_EVAL",         \* Attempt to submit results of evaluation via TSC
@@ -70,7 +71,7 @@ ReceivePostTasks(i) ==
     /\ \/ LET msg == CHOOSE m \in Requesters[i].msgs : m.src = "TSSC" IN 
           \/ /\ msg.type = "ACK"
              /\ Requesters' = [Requesters EXCEPT
-                              ![i].tasks = <<>>,
+                              ![i].tasks = {},
                               ![i].state = "SEND_QUERY_TASKS",
                               ![i].msgs = Requesters[i].msgs \ {msg}]
           \/ /\ msg.type = "INVALID"
@@ -124,7 +125,7 @@ SendKey(i) ==
             /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union 
                                                         {[type |-> "SEND_KEY",
                                                          pubkey |-> Requesters[i].pubkey, 
-                                                         keyshare |-> "Placeholder"]}]
+                                                         keyshare |-> "PlaceholderKeyshare"]}]
             /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
     /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>
 
@@ -135,14 +136,24 @@ ReceiveKey(i) ==
                                        /\ msg.pubkey \in Requesters[i].unconfirmedWorkers
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : /\ m.type = "ACK" 
                                                     /\ m.pubkey \in Requesters[i].unconfirmedWorkers IN 
-        LET worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.pubkey IN 
+        /\ LET worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.pubkey IN 
             /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                                 ![i].unconfirmedWorkers = Requesters[i].unconfirmedWorkers \ {worker},
                                                 ![i].confirmedWorkers = Requesters[i].confirmedWorkers \union {worker},
                                                 ![i].state = IF Cardinality(Requesters[i].confirmedWorkers) + 1 = Cardinality(Requesters[i].currentTask.participants)
-                                                             THEN "QUERY_HASHES"
+                                                             THEN "SEND_QUERY_HASHES"
                                                              ELSE "SEND_KEY"]
     /\ UNCHANGED <<Workers, TSSC, TSCs, USSC, USCs>>
+
+SendQueryHashes(i) == 
+    /\ Requesters[i].state = "SEND_QUERY_HASHES"
+    /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+    /\ LET tsc == CHOOSE t \in TSCs : t.pubkey = Requesters[i].currentTask.pubkey IN 
+        /\ TSCs' = {IF t.taskId = Requesters[i].currentTask.taskId 
+                    THEN [t EXCEPT !.msgs = t.msgs \union {[type |-> "QUERY_HASHES", pubkey |-> Requesters[i].pubkey]}]
+                    ELSE t : t \in TSCs} 
+        /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
+    /\ UNCHANGED <<Workers, TSSC, USSC, USCs>>
     
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
@@ -157,6 +168,7 @@ Next ==
         \/ SendPostTasks(requester)
         \/ SendQueryTasks(requester)
         \/ SendKey(requester)
+        \/ SendQueryHashes(requester)
         \/ ReceiveRegister(requester)        
         \/ ReceivePostTasks(requester)
         \/ ReceiveQueryTasks(requester)
@@ -167,5 +179,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 09:03:21 CET 2024 by jungc
+\* Last modified Sun Feb 25 10:10:05 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

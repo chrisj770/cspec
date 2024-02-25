@@ -11,9 +11,11 @@ TypeOK ==
          "SEND_CONFIRM_TASK",   \* Attempt to enlist as a confirmed WORKER for each selected TSC
          "RECV_SEND_KEY",       \* Await key-share from REQUESTER for single task
          "COMPUTE",             \* Generate sensory data
-         "SUBMIT_DATA",         \* Attempt to submit encrypted sensory data to STORAGE
-         "SUBMIT_HASH",         \* Attempt to submit hash of sensory data to TSC
-         "GET_WEIGHTS",         \* Await weight broadcast from REQUESTER
+         "SEND_SUBMIT_DATA",    \* Attempt to submit encrypted sensory data to STORAGE
+         "RECV_SUBMIT_DATA",    \* Receive acknowledgement for sensory data from STORAGE
+         "SEND_SUBMIT_HASH",    \* Attempt to submit hash of sensory data to TSC
+         "RECV_SUBMIT_HASH",    \* Receive acknowledgement for hash from TSC 
+         "RECV_WEIGHTS",        \* Await weight broadcast from REQUESTER
          "QUERY_HASHES",        \* Request list of all hashes from TSC
          "QUERY_DATA",          \* Request all relevant sensory data from STORAGE
          "VERIFY",              \* Run verification process
@@ -106,14 +108,14 @@ ReceiveConfirmTask_Failed(i, msg, task) ==
                              ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask_Success(i, msg, task) == 
-    LET currentTask == CHOOSE t \in Workers[i].confirmedTasks \union {task} :
-                           \A y \in Workers[i].confirmedTasks \union {task} : 
-                           t.taskId # y.taskId => t.taskId < y.taskId IN 
+    LET firstTask == CHOOSE t \in Workers[i].confirmedTasks \union {task} :
+                         \A y \in Workers[i].confirmedTasks \union {task} : 
+                         t.taskId # y.taskId => t.taskId < y.taskId IN 
         Workers' = [Workers EXCEPT 
                     ![i].msgs = Workers[i].msgs \ {msg},
                     ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
-                    ![i].confirmedTasks = (Workers[i].confirmedTasks \union {task}) \ {currentTask},
-                    ![i].currentTask = currentTask,
+                    ![i].confirmedTasks = Workers[i].confirmedTasks \union {task},
+                    ![i].currentTask = firstTask,
                     ![i].state = IF Cardinality(Workers[i].unconfirmedTasks) = 1
                                  THEN "RECV_SEND_KEY"
                                  ELSE "SEND_CONFIRM_TASK"]
@@ -141,7 +143,74 @@ ReceiveSendKey(i) ==
                                       ![i].keyshare = msg.keyshare, 
                                       ![i].state = "COMPUTE"] 
     /\ UNCHANGED <<TSSC, TSCs, USSC, USCs>>
+
+SubmissionDeadlinePassed(i) == 
+    /\ Workers[i].currentTask # NULL
+    /\ Time >= Workers[i].currentTask.Sd
     
+DropTask(i) == 
+    IF Workers[i].confirmedTasks = {} 
+    THEN Workers' = [Workers EXCEPT ![i].state = "QUERY_TASKS", 
+                                    ![i].keyshare = NULL, 
+                                    ![i].currentTask = NULL]
+    ELSE LET nextTask == CHOOSE t \in Workers[i].confirmedTasks : 
+                             \A y \in Workers[i].confirmedTasks : 
+                             t.taskId # y.taskId => t.taskId < y.taskId IN 
+        Workers' = [Workers EXCEPT ![i].state = "GET_KEY",
+                                   ![i].keyshare = NULL, 
+                                   ![i].currentTask = nextTask,
+                                   ![i].confirmedTasks = Workers[i].confirmedTasks \ {nextTask}]
+                               
+    
+Compute(i) == 
+    /\ Workers[i].state = "COMPUTE"
+    /\ Workers[i].keyshare # NULL 
+    /\ IF Time >= Workers[i].currentTask.Sd THEN DropTask(i) 
+       ELSE Workers' = [Workers EXCEPT ![i].state = "SEND_SUBMIT_DATA"]
+    /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
+
+SendSubmitData(i) == 
+    /\ Workers[i].state = "SEND_SUBMIT_DATA" 
+    /\ Workers[i].keyshare # NULL 
+    \* /\ ~SubmissionDeadlinePassed(i)
+    \* TODO: Send message to Storage
+    /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_DATA"]
+    /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
+    
+TimeoutCurrentTask(i) == 
+    /\ Workers[i].state \in {"SEND_SUBMIT_DATA", "RECV_SUBMIT_DATA"}
+    /\ SubmissionDeadlinePassed(i)
+    /\ DropTask(i)
+    
+ReceiveSubmitData(i) == 
+    /\ Workers[i].state = "RECV_SUBMIT_DATA" 
+    /\ Workers[i].keyshare # NULL 
+ \* /\ ~SubmissionDeadlinePassed(i)
+ \*    TODO: Receive message from Storage
+    /\ Workers' = [Workers EXCEPT ![i].state = "SEND_SUBMIT_HASH"]
+    /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
+
+SendSubmitHash(i) ==
+    /\ Workers[i].state = "SEND_SUBMIT_HASH"
+    /\ Workers[i].keyshare # NULL
+ \* /\ ~SubmissionDeadlinePassed(i)
+    /\ TSCs' = {IF t.taskId = Workers[i].currentTask.taskId 
+                THEN [t EXCEPT !.msgs = t.msgs \union {[type |-> "SUBMIT_HASH", 
+                                                      pubkey |-> Workers[i].pubkey,
+                                                      hash |-> "PlaceholderHash"]}]
+                ELSE t : t \in TSCs}
+    /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_HASH"]
+    /\ UNCHANGED <<Requesters, TSSC, USSC, USCs>>
+
+ReceiveSubmitHash(i) == 
+    /\ Workers[i].state = "RECV_SUBMIT_HASH" 
+    /\ Workers[i].keyshare # NULL
+ \* /\ ~SubmissionDeadlinePassed(i)
+    /\ \E msg \in Workers[i].msgs : msg.type = "ACK" /\ msg.pubkey = Workers[i].currentTask.pubkey
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : m.type = "ACK" /\ m.pubkey = Workers[i].currentTask.pubkey IN
+        /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
+                                      ![i].state = "RECV_WEIGHTS"]
+    /\ UNCHANGED <<Requesters, TSSC, TSCs, USSC, USCs>>
     
 Terminating == /\ \A w \in 1..NumWorkers: Workers[w].state = "TERMINATED"
                /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs>> 
@@ -152,14 +221,19 @@ Next ==
     \/ \E worker \in 1..NumWorkers : 
         \/ SendRegister(worker)
         \/ SendQueryTasks(worker)
-        \/ SendConfirmTask(worker)        
+        \/ SendConfirmTask(worker) 
+        \/ SendSubmitData(worker) 
+        \/ SendSubmitHash(worker)
+        \/ Compute(worker)      
         \/ ReceiveRegister(worker)
         \/ ReceiveQueryTasks(worker)
         \/ ReceiveConfirmTask(worker)
         \/ ReceiveSendKey(worker)
+        \/ ReceiveSubmitData(worker)
+        \/ ReceiveSubmitHash(worker)
     \/ Terminating
         
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 09:03:35 CET 2024 by jungc
+\* Last modified Sun Feb 25 10:25:11 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

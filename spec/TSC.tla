@@ -11,7 +11,7 @@ GetIndex(task, allTasks) ==
 AddFields(struct, owner) == 
     struct @@ [taskId |-> Cardinality(TSCs) + struct.id,
                pubkey |-> ToString(NextPubkey + struct.id-1),
-               category |-> "Placeholder",
+               category |-> "PlaceholderCategory",
                state |-> "Available",
                owner |-> owner,
                participants |-> {},
@@ -20,6 +20,7 @@ AddFields(struct, owner) ==
                expertiseReputationThreshold |-> 0,
                checkQ |-> [j \in 0..1 |-> TRUE],
                QEvaluate |-> [j \in 0..1 |-> TRUE],
+               hashes |-> NULL,
                msgs |-> {}]
 
 TSCPostTasks(tasks, owner) == 
@@ -36,6 +37,15 @@ TSCSendResponse(pubkey, message) ==
        /\ LET wid == CHOOSE key \in DOMAIN Workers : Workers[key].pubkey = pubkey IN
             /\ Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
        /\ UNCHANGED <<Requesters>>
+       
+TSCHandleBadMessage(tsc, msg, expectedState) == 
+    IF tsc.state = "Canceled"
+        THEN TSCSendResponse(msg.pubkey, [type |-> "CANCELED", pubkey |-> tsc.pubkey])
+    ELSE IF tsc.state = "Completed"
+        THEN TSCSendResponse(msg.pubkey, [type |-> "COMPLETED", pubkey |-> tsc.pubkey]) 
+    ELSE IF tsc.state # expectedState
+        THEN TSCSendResponse(msg.pubkey, [type |-> "INVALID", pubkey |-> tsc.pubkey])
+    ELSE FALSE  
 
 TSCConfirmTask_CanParticipate(msg, tsc) == 
     /\ Cardinality(tsc.participants) < tsc.numParticipants
@@ -48,18 +58,13 @@ TSCConfirmTask_AddParticipant(msg, tsc) ==
                                !.state = IF Cardinality(tsc.participants) + 1 = tsc.numParticipants
                                          THEN "Unavailable" ELSE "Available"]
                 ELSE t : t \in TSCs}
-              
+                
 TSCConfirmTask == 
     /\ \E t \in TSCs : \E msg \in t.msgs : msg.type = "CONFIRM_TASK"
     /\ LET tsc == CHOOSE t \in TSCs : \E msg \in t.msgs : msg.type = "CONFIRM_TASK" IN 
         /\ LET msg == CHOOSE m \in tsc.msgs : m.type = "CONFIRM_TASK" IN 
             /\ USSCCheckUser(msg.pubkey, "WORKER")
-            /\ \/ /\ \/ /\ tsc.state \in {"Pending", "Unavailable", "QEvaluating"}
-                        /\ TSCSendResponse(msg.pubkey, [type |-> "INVALID", pubkey |-> tsc.pubkey])
-                     \/ /\ tsc.state = "Canceled"
-                        /\ TSCSendResponse(msg.pubkey, [type |-> "CANCELED", pubkey |-> tsc.pubkey])
-                     \/ /\ tsc.state = "Completed"
-                        /\ TSCSendResponse(msg.pubkey, [type |-> "COMPLETED", pubkey |-> tsc.pubkey])
+            /\ \/ /\ TSCHandleBadMessage(tsc, msg, "Available")
                   /\ TSCs' = {IF t.taskId = tsc.taskId
                               THEN [t EXCEPT !.msgs = t.msgs \ {msg}]
                               ELSE t : t \in TSCs}
@@ -72,15 +77,48 @@ TSCConfirmTask ==
                                       ELSE t : t \in TSCs} 
                           /\ TSCSendResponse(msg.pubkey, [type |-> "CONFIRM_FAIL", pubkey |-> tsc.pubkey])
     /\ UNCHANGED <<TSSC, USSC, USCs>>
+    
+TSCAddHash(tsc, msg) == 
+    LET hashes == IF tsc.hashes = NULL THEN {msg.hash} 
+                  ELSE tsc.hashes \union {msg.hash} IN 
+        /\ TSCs' = {IF t.taskId = tsc.taskId
+                    THEN [t EXCEPT !.msgs = t.msgs \ {msg},
+                                   !.hashes = hashes,
+                                   !.state = IF Cardinality(hashes) = Cardinality(tsc.participants)
+                                             THEN "QEvaluating"
+                                             ELSE "Unavailable"]
+                    ELSE t : t \in TSCs}
+    
+TSCReceiveSubmitHash == 
+    /\ \E t \in TSCs : \E msg \in t.msgs : /\ msg.type = "SUBMIT_HASH"
+                                           /\ msg.pubkey \in t.participants
+    /\ LET tsc == CHOOSE t \in TSCs : \E msg \in t.msgs : /\ msg.type = "SUBMIT_HASH" 
+                                                          /\ msg.pubkey \in t.participants IN 
+        /\ LET msg == CHOOSE m \in tsc.msgs : /\ m.type = "SUBMIT_HASH" 
+                                              /\ m.pubkey \in tsc.participants IN 
+            /\ USSCCheckUser(msg.pubkey, "WORKER")
+            /\ \/ /\ TSCHandleBadMessage(tsc, msg, "Unavailable")
+                  /\ TSCs' = {IF t.taskId = tsc.taskId
+                              THEN [t EXCEPT !.msgs = t.msgs \ {msg}]
+                              ELSE t : t \in TSCs}
+               \/ /\ tsc.state = "Unavailable"
+                  /\ \/ /\ tsc.hashes # NULL
+                        /\ msg.hash \in tsc.hashes
+                        /\ UNCHANGED <<TSCs>>
+                     \/ /\ TSCAddHash(tsc, msg)
+                  /\ TSCSendResponse(msg.pubkey, [type |-> "ACK", pubkey |-> tsc.pubkey])
+    /\ UNCHANGED <<Requesters, TSSC, USSC, USCs>>
+               
 
 
 TSCNext == \/ /\ Cardinality(TSCs) = 0
               /\ UNCHANGED <<Workers, Requesters, TSSC, TSCs, USSC, USCs>>
            \/ TSCConfirmTask
+           \/ TSCReceiveSubmitHash
             \* \/ TSCUnavailable(tsc)
             \* \/ TSCQEvaluating(tsc)
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 08:21:17 CET 2024 by jungc
+\* Last modified Sun Feb 25 10:15:22 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc
