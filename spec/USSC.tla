@@ -44,12 +44,12 @@ USSCReceiveRegister ==
                              /\ UNCHANGED <<Workers>> 
                      /\ NextPubkey' = NextPubkey + 1
           /\ USSC' = [USSC EXCEPT !.msgs = USSC.msgs \ {msg}]
-    /\ UNCHANGED <<TSSC, TSCs>> 
+    /\ UNCHANGED <<TSCs>> 
         
 USSCNext == 
     \/ USSCReceiveRegister
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Feb 25 15:08:43 CET 2024 by jungc
+\* Last modified Mon Feb 26 08:43:03 CET 2024 by jungc
 \* Created Thu Feb 22 10:07:57 CET 2024 by jungc
