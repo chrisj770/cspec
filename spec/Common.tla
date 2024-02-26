@@ -16,29 +16,31 @@ VARIABLES
     NextPubkey, 
     Storage
     
-IsWorker(address) == 
-    \E i \in 1..NumWorkers : Workers[i].address = address
+IsWorker(public_key) == 
+    \E i \in 1..NumWorkers : Workers[i].pk = public_key
     
-IsRequester(address) == 
-    \E i \in 1..NumRequesters : Requesters[i].address = address
+IsRequester(public_key) == 
+    \E i \in 1..NumRequesters : Requesters[i].pk = public_key
     
-GetWorker(address) == 
-    CHOOSE i \in 1..NumWorkers : Workers[i].address = address
+GetWorker(public_key) == 
+    CHOOSE i \in 1..NumWorkers : Workers[i].pk = public_key
     
-GetRequester(address) == 
-    CHOOSE i \in 1..NumRequesters : Requesters[i].address = address
+GetRequester(public_key) == 
+    CHOOSE i \in 1..NumRequesters : Requesters[i].pk = public_key
 
 SendMessage(recipient, message) == 
-    IF recipient = "TSC"
+    IF recipient.address = "TSC"
          THEN TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \union {message}]
-    ELSE IF recipient = "USC"
+    ELSE IF recipient.address = "USC"
          THEN USCs' = [USCs EXCEPT !.msgs = USCs.msgs \union {message}]
     ELSE IF IsRequester(recipient)
          THEN LET rid == GetRequester(recipient)
-              IN Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union {message}]
+              IN Requesters' = [Requesters EXCEPT ![rid].msgs = 
+                                Requesters[rid].msgs \union {message}]
     ELSE IF IsWorker(recipient) 
          THEN LET wid == GetWorker(recipient)
-              IN Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
+              IN Workers' = [Workers EXCEPT ![wid].msgs =
+                             Workers[wid].msgs \union {message}]
     ELSE FALSE
     
 (***************************************************************************)
@@ -48,14 +50,14 @@ SendMessage(recipient, message) ==
 (* represented as structs of the following format:                         *)
 (*                                                                         *)
 (* Key == [address |-> (encryptor_address),                                *)
-(*            type |-> ("public" or "private")                             *)
-(*           share |-> (Int or "NULL")]                                    *)
+(*            type |-> ("public_key" or "private_key")                     *)
+(*           share |-> (Int)]                           <----OPTIONAL      *)
 (*                                                                         *)
 (* We also store each instance of encrypted data with the key used for     *)
 (* encryption, as formatted below:                                         *)
 (*                                                                         *)
-(* EncryptedData == [data |-> (data),                                      *)
-(*                    key |-> (key)]                                       *)
+(* EncryptedData == [encryptedData |-> (data),                             *)
+(*                   encryptionKey |-> (key)]                              *)
 (*                                                                         *)
 (* Any user "N" can encrypt data using their public key "Npk", or some     *)
 (* share of the public key "Npk_1", "Npk_2", ..., "Npk_n". Once this       *)
@@ -64,16 +66,31 @@ SendMessage(recipient, message) ==
 (* "Nsk_1", "Nsk_2", ..., "Nsk_n". These operations are represented via    *)
 (* the methods below.                                                      *)
 (***************************************************************************)
-Encrypt(data, pk) == 
-    [data |-> data, key |-> pk]
+Encrypt(data, encryptionKey) == 
+    [encryptedData |-> data, encryptionKey |-> encryptionKey]
 
-Decrypt(data, sk) == 
-    IF /\ sk.address = data.key.address
-       /\ sk.type = IF data.key.type = "public" THEN "private" ELSE FALSE 
-       /\ sk.share = data.key.share
-    THEN data.data ELSE NULL 
+(***************************************************************************)
+(* Three conditions must be fulfilled to decrypt data:                     *)
+(*                                                                         *)
+(*  (1) The encryption/decryption key must be from the same source         *)
+(*  (2) If encrypted via public, must decrypt via private and vice-versa   *)
+(*  (3) If a keyshare was used, the decryptor must have access to the      *)
+(*      same partial keyshare as that which was used to encrypt            *)
+(***************************************************************************)
+Decrypt(data, decryptionKey) == 
+    IF /\ decryptionKey.address = data.encryptionKey.address
+       /\ decryptionKey.type = IF data.encryptionKey.type = "public_key" 
+                               THEN "private_key"
+                               ELSE IF data.encryptionKey.type = "private_key" 
+                                    THEN "public_key"
+                                    ELSE "" 
+       /\ IF /\ "share" \in DOMAIN data.encryptionKey
+             /\ "share" \in DOMAIN decryptionKey
+          THEN decryptionKey.share = data.encryptionKey.share
+          ELSE TRUE
+    THEN data.encryptedData ELSE NULL 
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 12:36:39 CET 2024 by jungc
+\* Last modified Mon Feb 26 14:41:35 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

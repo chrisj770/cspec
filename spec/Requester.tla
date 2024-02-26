@@ -1,5 +1,5 @@
 ----------------------------- MODULE Requester -----------------------------
-EXTENDS FiniteSets, Sequences, Common
+EXTENDS FiniteSets, Sequences, TLC, Common
 
 CONSTANT Tasks
 
@@ -39,16 +39,16 @@ TypeOK ==
 Init == 
     Requesters = [r \in 1..NumRequesters |-> [
                     msgs |-> {}, 
-                    state |-> "SEND_REGISTER",
-                    address |-> "",
-                    pk |-> NULL, 
-                    sk |-> NULL,
-                    tasks |-> Tasks,
-                    currentTask |-> NULL,
-                    unconfirmedWorkers |-> {}, 
-                    confirmedWorkers |-> {},
-                    submittedHashes |-> {},
-                    submittedData |-> {}]]
+                   state |-> "SEND_REGISTER",
+                 address |-> "",
+                      pk |-> NULL, 
+                      sk |-> NULL,
+                   tasks |-> Tasks,
+             currentTask |-> NULL,
+      unconfirmedWorkers |-> {}, 
+        confirmedWorkers |-> {},
+         submittedHashes |-> {},
+           submittedData |-> {}]]
 
 SendRegister_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_REGISTER"
@@ -56,14 +56,14 @@ SendRegister_IsEnabled(i) ==
 SendRegister(i) == 
     /\ SendRegister_IsEnabled(i)
     /\ LET request == [type |-> "REGISTER", 
-                      userType |-> "REQUESTER", 
-                      src |-> i]
-       IN /\ SendMessage("USC", request) 
+                   userType |-> "REQUESTER", 
+                       from |-> i]
+       IN /\ SendMessage(USCs.pk, request) 
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_REGISTER"]
     /\ UNCHANGED <<Workers, TSCs, Storage>>
 
 ReceiveRegister_MessageFormat(i, msg) == 
-    /\ msg.address = "USC"
+    /\ msg.from = USCs.pk
     /\ \/ msg.type = "NOT_REGISTERED"
        \/ /\ msg.type = "REGISTERED"
           /\ \A f \in {"key", "pk", "sk"}: f \in DOMAIN msg
@@ -92,14 +92,14 @@ SendPostTasks_IsEnabled(i) ==
 SendPostTasks(i) == 
     /\ SendPostTasks_IsEnabled(i) 
     /\ LET request == [type |-> "POST_TASKS", 
-                      address |-> Requesters[i].address, 
+                       from |-> Requesters[i].pk, 
                       tasks |-> Requesters[i].tasks]
-       IN /\ SendMessage("TSC", request)
+       IN /\ SendMessage(TSCs.pk, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_POST_TASKS"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
 
 ReceivePostTasks_MessageFormat(i, msg) == 
-    /\ msg.address = "TSC"
+    /\ msg.from = TSCs.pk
     /\ msg.type \in {"ACK", "INVALID"}
 
 ReceivePostTasks_IsEnabled(i) == 
@@ -123,14 +123,14 @@ SendQueryTasks_IsEnabled(i) ==
 SendQueryTasks(i) == 
     /\ SendQueryTasks_IsEnabled(i)
     /\ LET request == [type |-> "QUERY_TASKS", 
-                      address |-> Requesters[i].address, 
-                      owner |-> Requesters[i].address]
-       IN /\ SendMessage("TSC", request)
+                       from |-> Requesters[i].pk, 
+                      owner |-> Requesters[i].pk]
+       IN /\ SendMessage(TSCs.pk, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
      
 ReceiveQueryTasks_MessageFormat(i, msg) == 
-    /\ msg.address = "TSC" 
+    /\ msg.from = TSCs.pk 
     /\ msg.type \in {"TASKS", "INVALID"}
 
 ReceiveQueryTasks_IsEnabled(i) ==
@@ -168,17 +168,20 @@ SendKey_IsEnabled(i) ==
 
 SendKey(i) ==
     /\ SendKey_IsEnabled(i)
-    /\ LET nextWorkerAddress == CHOOSE r \in Requesters[i].unconfirmedWorkers : TRUE 
+    /\ LET nextWorkerPk == CHOOSE r \in Requesters[i].unconfirmedWorkers : TRUE
+           splitkeyshare == Requesters[i].sk @@ 
+                            [share |-> Requesters[i].currentTask.numParticipants - 
+                                       Cardinality(Requesters[i].unconfirmedWorkers)]
            request == [type |-> "SEND_KEY", 
-                      address |-> Requesters[i].address, 
-                      keyshare |-> "PlaceholderKeyshare"]
-       IN /\ SendMessage(nextWorkerAddress, request)
+                       from |-> Requesters[i].pk, 
+                   keyshare |-> Encrypt(splitkeyshare, nextWorkerPk)]
+       IN /\ SendMessage(nextWorkerPk, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
     /\ UNCHANGED <<TSCs, USCs, Storage>>
 
 ReceiveKey_MessageFormat(i, msg) == 
     /\ msg.type = "ACK" 
-    /\ msg.address \in Requesters[i].unconfirmedWorkers
+    /\ \E k \in Requesters[i].unconfirmedWorkers : k = msg.from 
 
 ReceiveKey_IsEnabled(i) == 
     /\ Requesters[i].state = "RECV_KEY"
@@ -190,7 +193,7 @@ ReceiveKey_IsEnabled(i) ==
 ReceiveKey(i) == 
     /\ ReceiveKey_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveKey_MessageFormat(i, m) 
-           worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.address 
+           worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.from 
        IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                            ![i].unconfirmedWorkers = Requesters[i].unconfirmedWorkers \ {worker},
                                            ![i].confirmedWorkers = Requesters[i].confirmedWorkers \union {worker},
@@ -208,14 +211,14 @@ SendQueryHashes_IsEnabled(i) ==
 SendQueryHashes(i) == 
     /\ SendQueryHashes_IsEnabled(i)
     /\ LET request == [type |-> "QUERY_HASHES", 
-                      address |-> Requesters[i].address, 
-                      task |-> Requesters[i].currentTask.address] 
-       IN /\ SendMessage("TSC", request)
+                       from |-> Requesters[i].pk, 
+                       task |-> Requesters[i].currentTask.address] 
+       IN /\ SendMessage(TSCs.pk, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
     
 ReceiveQueryHashes_MessageFormat(i, msg) == 
-    /\ msg.address = "TSC"
+    /\ msg.from = TSCs.pk
     /\ msg.type = "HASHES" 
     /\ msg.task = Requesters[i].currentTask.address
     /\ "hashes" \in DOMAIN msg
@@ -244,16 +247,16 @@ SendQueryData_IsEnabled(i) ==
 SendQueryData(i) == 
     /\ SendQueryData_IsEnabled(i)
     /\ LET request == [type |-> "QUERY_DATA", 
-                      address |-> Requesters[i].address, 
-                      hashes |-> Requesters[i].submittedHashes]
+                       from |-> Requesters[i].pk, 
+                     hashes |-> Requesters[i].submittedHashes]
        IN /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {request}]
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_DATA"]
     /\ UNCHANGED <<Workers, TSCs, USCs>> 
     
 ReceiveQueryData_MessageFormat(i, msg) == 
     /\ msg.type = "DATA"
-    /\ msg.address = "STORAGE"
-    /\ "data" \in DOMAIN msg
+    /\ msg.from = "STORAGE"
+    /\ "allData" \in DOMAIN msg
 
 ReceiveQueryData_IsEnabled(i) ==
     /\ Requesters[i].state = "RECV_QUERY_DATA"
@@ -265,8 +268,11 @@ ReceiveQueryData_IsEnabled(i) ==
 ReceiveQueryData(i) == 
     /\ ReceiveQueryData_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryData_MessageFormat(i, m)
+           decryptedData == {Decrypt(d.submission, Requesters[i].sk @@ 
+                                                   [share |-> d.submission.encryptionKey.share]) 
+                                                   : d \in msg.allData}
        IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                           ![i].submittedData = msg.data,
+                                           ![i].submittedData = decryptedData,
                                            ![i].state = "EVALUATE"]
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
@@ -358,5 +364,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 12:56:27 CET 2024 by jungc
+\* Last modified Mon Feb 26 14:38:12 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

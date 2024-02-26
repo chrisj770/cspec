@@ -29,16 +29,16 @@ StateConsistency == TRUE
          
 Init ==
     Workers = [w \in 1..NumWorkers |-> [
-                msgs |-> {}, 
-                state |-> "SEND_REGISTER",
-                address |-> "",
-                pk |-> NULL, 
-                sk |-> NULL,
-                unconfirmedTasks |-> {}, 
-                confirmedTasks |-> {}, 
-                currentTask |-> NULL,
-                requesterSk |-> NULL, 
-                currentHash |-> NULL]]
+                  msgs |-> {}, 
+                 state |-> "SEND_REGISTER",
+               address |-> "",
+                    pk |-> NULL, 
+                    sk |-> NULL,
+      unconfirmedTasks |-> {}, 
+        confirmedTasks |-> {}, 
+           currentTask |-> NULL,
+           requesterSk |-> NULL, 
+           currentHash |-> NULL]]
 
 SendRegister_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_REGISTER"
@@ -46,14 +46,14 @@ SendRegister_IsEnabled(i) ==
 SendRegister(i) == 
     /\ SendRegister_IsEnabled(i)
     /\ LET request == [type |-> "REGISTER", 
-                      userType |-> "WORKER", 
-                      src |-> i]
-       IN /\ SendMessage("USC", request)
+                   userType |-> "WORKER", 
+                       from |-> i]
+       IN /\ SendMessage(USCs.pk, request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_REGISTER"]
     /\ UNCHANGED <<Requesters, TSCs, Storage>>
 
 ReceiveRegister_MessageFormat(i, msg) == 
-    /\ msg.address = "USC"
+    /\ msg.from = USCs.pk
     /\ \/ msg.type = "NOT_REGISTERED"
        \/ /\ msg.type = "REGISTERED"
           /\ \A f \in {"key", "pk", "sk"}: f \in DOMAIN msg
@@ -82,14 +82,14 @@ SendQueryTasks_IsEnabled(i) ==
 SendQueryTasks(i) == 
     /\ SendQueryTasks_IsEnabled(i)
     /\ LET request == [type |-> "QUERY_TASKS", 
-                      address |-> Workers[i].address,
+                       from |-> Workers[i].pk,
                       owner |-> NULL]
-       IN /\ SendMessage("TSC", request)
+       IN /\ SendMessage(TSCs.pk, request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
     
 ReceiveQueryTasks_MessageFormat(i, msg) == 
-    /\ msg.address = "TSC"
+    /\ msg.from = TSCs.pk
     /\ msg.type \in {"TASKS", "INVALID"}
 
 ReceiveQueryTasks_IsEnabled(i) == 
@@ -122,14 +122,14 @@ SendConfirmTask(i) ==
                        \A other \in Workers[i].unconfirmedTasks: 
                        tsc # other => tsc.taskId < other.taskId
            request == [type |-> "CONFIRM_TASK", 
-                      address |-> Workers[i].address, 
-                      task |-> currTask.address]
-       IN /\ SendMessage("TSC", request)
+                       from |-> Workers[i].pk, 
+                       task |-> currTask.address]
+       IN /\ SendMessage(TSCs.pk, request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_CONFIRM_TASK"]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
 
 ReceiveConfirmTask_MessageFormat(i, msg) == 
-    /\ msg.address = "TSC"
+    /\ msg.from = TSCs.pk
     /\ \/ msg.type \in {"INVALID", "CANCELED", "COMPLETED", "NOT_REGISTERED"}
        \/ /\ msg.type \in {"CONFIRM_FAIL", "CONFIRM_SUCCESS"}
           /\ msg.task \in {t.address : t \in Workers[i].unconfirmedTasks}
@@ -179,7 +179,7 @@ ReceiveConfirmTask(i) ==
 
 ReceiveSendKey_MessageFormat(i, msg) == 
     /\ msg.type = "SEND_KEY" 
-    /\ msg.address = Workers[i].currentTask.owner
+    /\ msg.from = Workers[i].currentTask.owner
     /\ "keyshare" \in DOMAIN msg
 
 ReceiveSendKey_IsEnabled(i) == 
@@ -192,11 +192,12 @@ ReceiveSendKey_IsEnabled(i) ==
 ReceiveSendKey(i) == 
     /\ ReceiveSendKey_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveSendKey_MessageFormat(i, m)
-           rid == CHOOSE r \in 1..NumRequesters : Requesters[r].address = msg.address
-           response == [type |-> "ACK", address |-> Workers[i].address]
-       IN /\ SendMessage(msg.address, response)
+           decryptedKeyshare == Decrypt(msg.keyshare, Workers[i].sk)
+           response == [type |-> "ACK", 
+                        from |-> Workers[i].pk]
+       IN /\ SendMessage(msg.from, response)
           /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
-                                        ![i].requesterSk = msg.keyshare, 
+                                        ![i].requesterSk = decryptedKeyshare, 
                                         ![i].state = "COMPUTE"] 
     /\ UNCHANGED <<TSCs, USCs, Storage>>
 
@@ -219,16 +220,18 @@ SendSubmitData_IsEnabled(i) ==
 
 SendSubmitData(i) == 
     /\ SendSubmitData_IsEnabled(i) 
-    /\ LET request == [type |-> "SUBMIT_DATA", 
-                      address |-> Workers[i].address, 
-                      data |-> "DataPlaceholder"]
+    /\ LET encryptedData == Encrypt("DataPlaceholder", Workers[i].currentTask.owner @@ 
+                                                       [share |-> Workers[i].requesterSk.share])
+           request == [type |-> "SUBMIT_DATA", 
+                       from |-> Workers[i].pk, 
+                       data |-> encryptedData]
        IN /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {request}]
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_DATA"]
     /\ UNCHANGED <<Requesters, TSCs, USCs>>
 
 ReceiveSubmitData_MessageFormat(i, msg) == 
     /\ msg.type = "HASH" 
-    /\ msg.address = "STORAGE"
+    /\ msg.from = "STORAGE"
 
 ReceiveSubmitData_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SUBMIT_DATA" 
@@ -256,17 +259,17 @@ SendSubmitHash_IsEnabled(i) ==
 SendSubmitHash(i) ==
     /\ SendSubmitHash_IsEnabled(i)
     /\ LET request == [type |-> "SUBMIT_HASH", 
-                      address |-> Workers[i].address,
-                      hash |-> Workers[i].currentHash,
-                      task |-> Workers[i].currentTask.address]
-       IN /\ SendMessage("TSC", request)
+                       from |-> Workers[i].pk,
+                       hash |-> Workers[i].currentHash,
+                       task |-> Workers[i].currentTask.address]
+       IN /\ SendMessage(TSCs.pk, request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_HASH"]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
 
 ReceiveSubmitHash_MessageFormat(i, msg) == 
     /\ msg.type = "ACK" 
     /\ msg.task = Workers[i].currentTask.address
-    /\ msg.address = "TSC"
+    /\ msg.from = TSCs.pk
 
 ReceiveSubmitHash_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SUBMIT_HASH" 
@@ -339,5 +342,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 12:50:45 CET 2024 by jungc
+\* Last modified Mon Feb 26 14:27:51 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

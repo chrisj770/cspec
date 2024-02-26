@@ -7,16 +7,17 @@ TypeOK == TRUE
 
 Init == 
     TSCs = [state |-> "WORKING",
-           msgs |-> {},
-           tasks |-> {}]  
+             msgs |-> {},
+               pk |-> [address |-> "TSC", type |-> "public_key"],
+            tasks |-> {}]  
            
 HandleBadMessage(task, msg, expectedState) == 
     IF task.state = "Canceled"
-        THEN SendMessage(msg.address, [type |-> "CANCELED", address |-> "TSC"])
+        THEN SendMessage(msg.from, [type |-> "CANCELED", from |-> TSCs.pk])
     ELSE IF task.state = "Completed"
-        THEN SendMessage(msg.address, [type |-> "COMPLETED", address |-> "TSC"]) 
+        THEN SendMessage(msg.from, [type |-> "COMPLETED", from |-> TSCs.pk]) 
     ELSE IF task.state # expectedState
-        THEN SendMessage(msg.address, [type |-> "INVALID", address |-> "TSC"])
+        THEN SendMessage(msg.from, [type |-> "INVALID", from |-> TSCs.pk])
     ELSE FALSE  
            
 AddFields(struct, owner) == 
@@ -35,14 +36,14 @@ AddFields(struct, owner) ==
                    
 ReceivePostTasks_MessageFormat(msg) == 
     /\ msg.type = "POST_TASKS"
-    /\ IsRequester(msg.address)
+    /\ IsRequester(msg.from)
 
 ReceivePostTasks_IsEnabled == 
     /\ TSCs.state = "WORKING"
     /\ \E msg \in TSCs.msgs : ReceivePostTasks_MessageFormat(msg)
     
 PostTasks(msg) == 
-    LET addTSCs == {AddFields(t, msg.address) : t \in msg.tasks} 
+    LET addTSCs == {AddFields(t, msg.from) : t \in msg.tasks} 
     IN /\ TSCs' = [TSCs EXCEPT !.tasks = TSCs.tasks \union addTSCs,
                                !.msgs = TSCs.msgs \ {msg}]
        /\ NextPubkey' = NextPubkey + Cardinality(addTSCs) 
@@ -52,18 +53,18 @@ ReceivePostTasks ==
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceivePostTasks_MessageFormat(m) 
        IN IF Time < TaskPostDeadline 
           THEN /\ PostTasks(msg)
-               /\ SendMessage(msg.address, [type |-> "ACK", address |-> "TSC"])                                  
+               /\ SendMessage(msg.from, [type |-> "ACK", from |-> TSCs.pk])                                  
           ELSE /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
-               /\ SendMessage(msg.address, [type |-> "INVALID", address |-> "TSC"])
+               /\ SendMessage(msg.from, [type |-> "INVALID", from |-> TSCs.pk])
                /\ UNCHANGED <<NextPubkey>>
     /\ UNCHANGED <<Workers, USCs>>
 
 ReceiveQueryTasks_MessageFormat(msg) == 
     /\ msg.type = "QUERY_TASKS" 
-    /\ \/ /\ IsRequester(msg.address)
+    /\ \/ /\ IsRequester(msg.from)
           /\ msg.owner # NULL
           /\ \A t \in TSCs.tasks : t.owner = msg.owner => t.state = "Unavailable"
-       \/ /\ IsWorker(msg.address)
+       \/ /\ IsWorker(msg.from)
           /\ msg.owner = NULL
 
 ReceiveQueryTasks_IsEnabled == 
@@ -75,21 +76,21 @@ ReceiveQueryTasks ==
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveQueryTasks_MessageFormat(m)
            valid == Time >= TaskPostDeadline
            matchingTSCs == IF ~valid THEN NULL 
-                           ELSE IF IsWorker(msg.address) THEN TSCs.tasks
+                           ELSE IF IsWorker(msg.from) THEN TSCs.tasks
                                 ELSE {t \in TSCs.tasks : t.owner = msg.owner} 
            response == [type |-> IF valid THEN "TASKS" ELSE "INVALID",  
-                       address |-> "TSC", 
+                        from |-> TSCs.pk, 
                        tasks |-> matchingTSCs]
-       IN /\ SendMessage(msg.address, response)
+       IN /\ SendMessage(msg.from, response)
           /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
-          /\ IF IsRequester(msg.address) 
+          /\ IF IsRequester(msg.from) 
              THEN UNCHANGED <<Workers>>
              ELSE UNCHANGED <<Requesters>> 
     /\ UNCHANGED <<USCs, NextPubkey>>           
              
 ReceiveConfirmTask_MessageFormat(msg) == 
     /\ msg.type = "CONFIRM_TASK"
-    /\ IsWorker(msg.address)
+    /\ IsWorker(msg.from)
     /\ \E t \in TSCs.tasks : msg.task = t.address
 
 ReceiveConfirmTask_IsEnabled == 
@@ -106,17 +107,17 @@ ReceiveConfirmTask ==
           \/ /\ tsc.state = "Available"
              /\ Cardinality(tsc.participants) < tsc.numParticipants
              /\ LET request == [type |-> "GET_REPUTATION", 
-                               address |-> "TSC", 
-                               user |-> msg.address, 
-                               task |-> msg.task]
-                IN /\ SendMessage("USC", request) 
+                                from |-> TSCs.pk, 
+                                user |-> msg.from, 
+                                task |-> msg.task]
+                IN /\ SendMessage(USCs.pk, request) 
                    /\ TSCs' = [TSCs EXCEPT !.state = "CHECK_REPUTATION", 
                                            !.msgs = TSCs.msgs \ {msg}]
     /\ UNCHANGED <<Workers, Requesters, NextPubkey>>
     
 CheckReputation_MessageFormat(msg) == 
     /\ msg.type \in {"REPUTATION", "NOT_REGISTERED"}
-    /\ msg.address = "USC"
+    /\ msg.from = USCs.pk
     /\ \A f \in {"reputation", "user", "task"} : f \in DOMAIN msg
     
 CheckReputation_IsEnabled == 
@@ -141,7 +142,7 @@ CheckReputation ==
     /\ CheckReputation_IsEnabled
     /\ LET msg == CHOOSE m \in TSCs.msgs : CheckReputation_MessageFormat(m) 
            tsc == CHOOSE t \in TSCs.tasks : t.address = msg.task
-           response == [address |-> "TSC", task |-> tsc.address]
+           response == [from |-> TSCs.pk, task |-> tsc.address]
        IN IF msg.type = "REPUTATION"
           THEN IF CanParticipate(msg.reputation, tsc)  
                THEN /\ AddParticipant(msg, tsc)
@@ -156,7 +157,7 @@ CheckReputation ==
 
 ReceiveSubmitHash_TaskFormat(t, msg) == 
     /\ msg.task = t.address
-    /\ msg.address \in t.participants 
+    /\ msg.from \in t.participants 
 
 ReceiveSubmitHash_MessageFormat(msg) == 
     /\ msg.type = "SUBMIT_HASH"
@@ -187,15 +188,17 @@ ReceiveSubmitHash ==
              /\ \/ /\ msg.hash \in tsc.hashes
                    /\ UNCHANGED <<TSCs>>
                 \/ SubmitHash(tsc, msg)
-             /\ SendMessage(msg.address, [type |-> "ACK", address |-> "TSC", task |-> tsc.address])
+             /\ SendMessage(msg.from, [type |-> "ACK", 
+                                       from |-> TSCs.pk, 
+                                       task |-> tsc.address])
     /\ UNCHANGED <<Requesters, USCs, NextPubkey>>
     
 ReceiveQueryHashes_TaskFormat(t, msg) == 
     /\ Cardinality(t.participants) = t.numParticipants
-    /\ \/ /\ IsWorker(msg.address)
-          /\ Workers[GetWorker(msg.address)].address \in t.participants
-       \/ /\ IsRequester(msg.address)
-          /\ msg.address = t.owner
+    /\ \/ /\ IsWorker(msg.from)
+          /\ Workers[GetWorker(msg.from)].pk \in t.participants
+       \/ /\ IsRequester(msg.from)
+          /\ msg.from = t.owner
 
 ReceiveQueryHashes_MessageFormat(msg) == 
     /\ msg.type = "QUERY_HASHES"
@@ -213,8 +216,11 @@ ReceiveQueryHashes ==
                 /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
              \/ /\ tsc.state = "QEvaluating"
                 /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
-                /\ SendMessage(msg.address, [type |-> "HASHES", address |-> "TSC", task |-> tsc.address, hashes |-> tsc.hashes])
-          /\ IF IsWorker(msg.address) 
+                /\ SendMessage(msg.from, [type |-> "HASHES", 
+                                          from |-> TSCs.pk, 
+                                          task |-> tsc.address, 
+                                        hashes |-> tsc.hashes])
+          /\ IF IsWorker(msg.from) 
              THEN UNCHANGED <<Requesters>>
              ELSE UNCHANGED <<Workers>>
     /\ UNCHANGED <<USCs, NextPubkey>>
@@ -229,5 +235,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 12:06:29 CET 2024 by jungc
+\* Last modified Mon Feb 26 13:57:47 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc
