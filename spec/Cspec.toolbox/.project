@@ -51,11 +51,6 @@
 			<locationURI>PARENT-1-PROJECT_LOC/USC.tla</locationURI>
 		</link>
 		<link>
-			<name>USSC.tla</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/USSC.tla</locationURI>
-		</link>
-		<link>
 			<name>Worker.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Worker.tla</locationURI>

@@ -10,37 +10,38 @@ CONSTANTS
 VARIABLES
     Workers,
     Requesters,
-    USSC,
     USCs,
     TSCs, 
     Time, 
     NextPubkey, 
     Storage
     
-IsWorker(pubkey) == 
-    \E i \in 1..NumWorkers : Workers[i].pubkey = pubkey
+IsWorker(address) == 
+    \E i \in 1..NumWorkers : Workers[i].address = address
     
-IsRequester(pubkey) == 
-    \E i \in 1..NumRequesters : Requesters[i].pubkey = pubkey
+IsRequester(address) == 
+    \E i \in 1..NumRequesters : Requesters[i].address = address
     
-GetWorker(pubkey) == 
-    CHOOSE i \in 1..NumWorkers : Workers[i].pubkey = pubkey
+GetWorker(address) == 
+    CHOOSE i \in 1..NumWorkers : Workers[i].address = address
     
-GetRequester(pubkey) == 
-    CHOOSE i \in 1..NumRequesters : Requesters[i].pubkey = pubkey
+GetRequester(address) == 
+    CHOOSE i \in 1..NumRequesters : Requesters[i].address = address
 
 SendMessage(recipient, message) == 
     IF recipient = "TSC"
-    THEN TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \union {message}]
+         THEN TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \union {message}]
+    ELSE IF recipient = "USC"
+         THEN USCs' = [USCs EXCEPT !.msgs = USCs.msgs \union {message}]
     ELSE IF IsRequester(recipient)
          THEN LET rid == GetRequester(recipient)
               IN Requesters' = [Requesters EXCEPT ![rid].msgs = Requesters[rid].msgs \union {message}]
-         ELSE IF IsWorker(recipient) 
-              THEN LET wid == GetWorker(recipient)
-                   IN Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
+    ELSE IF IsWorker(recipient) 
+         THEN LET wid == GetWorker(recipient)
+              IN Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
     ELSE FALSE
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 08:21:58 CET 2024 by jungc
+\* Last modified Mon Feb 26 11:07:02 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc
