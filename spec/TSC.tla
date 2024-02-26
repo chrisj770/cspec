@@ -217,7 +217,7 @@ ReceiveQueryHashes ==
           /\ IF IsWorker(msg.address) 
              THEN UNCHANGED <<Requesters>>
              ELSE UNCHANGED <<Workers>>
-    /\ UNCHANGED <<USCs, NextPubkey>>    
+    /\ UNCHANGED <<USCs, NextPubkey>>
 
 Next == 
     \/ ReceivePostTasks
@@ -229,5 +229,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 11:08:31 CET 2024 by jungc
+\* Last modified Mon Feb 26 12:06:29 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

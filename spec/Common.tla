@@ -40,8 +40,40 @@ SendMessage(recipient, message) ==
          THEN LET wid == GetWorker(recipient)
               IN Workers' = [Workers EXCEPT ![wid].msgs = Workers[wid].msgs \union {message}]
     ELSE FALSE
+    
+(***************************************************************************)
+(* During registration, each user receive a pair of public/private         *)
+(* encryption keys, which are used to encrypt/decrypt all instances of     *)
+(* sensory data that gets exchanged with Database. These keys are          *)
+(* represented as structs of the following format:                         *)
+(*                                                                         *)
+(* Key == [address |-> (encryptor_address),                                *)
+(*            type |-> ("public" or "private")                             *)
+(*           share |-> (Int or "NULL")]                                    *)
+(*                                                                         *)
+(* We also store each instance of encrypted data with the key used for     *)
+(* encryption, as formatted below:                                         *)
+(*                                                                         *)
+(* EncryptedData == [data |-> (data),                                      *)
+(*                    key |-> (key)]                                       *)
+(*                                                                         *)
+(* Any user "N" can encrypt data using their public key "Npk", or some     *)
+(* share of the public key "Npk_1", "Npk_2", ..., "Npk_n". Once this       *)
+(* occurs, the data can only be accessed by decrypting it via the          *)
+(* corresponding private key "Nsk", or some share of the private key       *)
+(* "Nsk_1", "Nsk_2", ..., "Nsk_n". These operations are represented via    *)
+(* the methods below.                                                      *)
+(***************************************************************************)
+Encrypt(data, pk) == 
+    [data |-> data, key |-> pk]
+
+Decrypt(data, sk) == 
+    IF /\ sk.address = data.key.address
+       /\ sk.type = IF data.key.type = "public" THEN "private" ELSE FALSE 
+       /\ sk.share = data.key.share
+    THEN data.data ELSE NULL 
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 11:07:02 CET 2024 by jungc
+\* Last modified Mon Feb 26 12:36:39 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

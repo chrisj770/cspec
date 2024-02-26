@@ -32,10 +32,12 @@ Init ==
                 msgs |-> {}, 
                 state |-> "SEND_REGISTER",
                 address |-> "",
+                pk |-> NULL, 
+                sk |-> NULL,
                 unconfirmedTasks |-> {}, 
                 confirmedTasks |-> {}, 
                 currentTask |-> NULL,
-                keyshare |-> NULL, 
+                requesterSk |-> NULL, 
                 currentHash |-> NULL]]
 
 SendRegister_IsEnabled(i) == 
@@ -54,7 +56,7 @@ ReceiveRegister_MessageFormat(i, msg) ==
     /\ msg.address = "USC"
     /\ \/ msg.type = "NOT_REGISTERED"
        \/ /\ msg.type = "REGISTERED"
-          /\ "key" \in DOMAIN msg
+          /\ \A f \in {"key", "pk", "sk"}: f \in DOMAIN msg
 
 ReceiveRegister_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_REGISTER"
@@ -63,13 +65,15 @@ ReceiveRegister_IsEnabled(i) ==
 ReceiveRegister(i) == 
     /\ ReceiveRegister_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveRegister_MessageFormat(i, m)
-       IN Workers' = [Workers EXCEPT ![i].address = IF msg.type = "REGISTERED" 
-                                                   THEN msg.key
-                                                   ELSE Workers[i].address,
+           newAddress == IF msg.type = "REGISTERED" THEN msg.key ELSE Workers[i].address
+           newPk == IF msg.type = "REGISTERED" THEN msg.pk ELSE Workers[i].pk
+           newSk == IF msg.type = "REGISTERED" THEN msg.sk ELSE Workers[i].sk
+           nextState == IF msg.type = "REGISTERED" THEN "SEND_QUERY_TASKS" ELSE "TERMINATED"
+       IN Workers' = [Workers EXCEPT ![i].address = newAddress,
+                                     ![i].pk = newPk,
+                                     ![i].sk = newSk,
                                      ![i].msgs = Workers[i].msgs \ {msg}, 
-                                     ![i].state = IF msg.type = "REGISTERED" 
-                                                  THEN "SEND_QUERY_TASKS"
-                                                  ELSE "TERMINATED"]
+                                     ![i].state = nextState]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
 
 SendQueryTasks_IsEnabled(i) == 
@@ -176,10 +180,11 @@ ReceiveConfirmTask(i) ==
 ReceiveSendKey_MessageFormat(i, msg) == 
     /\ msg.type = "SEND_KEY" 
     /\ msg.address = Workers[i].currentTask.owner
+    /\ "keyshare" \in DOMAIN msg
 
 ReceiveSendKey_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SEND_KEY"
-    /\ Workers[i].keyshare = NULL
+    /\ Workers[i].requesterSk = NULL
     /\ Workers[i].currentTask # NULL
     /\ Time < Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSendKey_MessageFormat(i, msg) 
@@ -191,13 +196,13 @@ ReceiveSendKey(i) ==
            response == [type |-> "ACK", address |-> Workers[i].address]
        IN /\ SendMessage(msg.address, response)
           /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
-                                        ![i].keyshare = msg.keyshare, 
+                                        ![i].requesterSk = msg.keyshare, 
                                         ![i].state = "COMPUTE"] 
     /\ UNCHANGED <<TSCs, USCs, Storage>>
 
 Compute_IsEnabled(i) == 
     /\ Workers[i].state = "COMPUTE"
-    /\ Workers[i].keyshare # NULL 
+    /\ Workers[i].requesterSk # NULL 
     /\ Workers[i].currentTask # NULL
     /\ Time < Workers[i].currentTask.Sd
     
@@ -208,7 +213,7 @@ Compute(i) ==
 
 SendSubmitData_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_SUBMIT_DATA" 
-    /\ Workers[i].keyshare # NULL
+    /\ Workers[i].requesterSk # NULL
     /\ Workers[i].currentTask # NULL
     /\ Time < Workers[i].currentTask.Sd
 
@@ -227,7 +232,7 @@ ReceiveSubmitData_MessageFormat(i, msg) ==
 
 ReceiveSubmitData_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SUBMIT_DATA" 
-    /\ Workers[i].keyshare # NULL 
+    /\ Workers[i].requesterSk # NULL 
     /\ Workers[i].currentHash = NULL
     /\ Workers[i].currentTask # NULL
     /\ Time < Workers[i].currentTask.Sd
@@ -243,7 +248,7 @@ ReceiveSubmitData(i) ==
 
 SendSubmitHash_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_SUBMIT_HASH"
-    /\ Workers[i].keyshare # NULL
+    /\ Workers[i].requesterSk # NULL
     /\ Workers[i].currentHash # NULL
     /\ Workers[i].currentTask # NULL
     /\ Time < Workers[i].currentTask.Sd
@@ -265,7 +270,7 @@ ReceiveSubmitHash_MessageFormat(i, msg) ==
 
 ReceiveSubmitHash_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SUBMIT_HASH" 
-    /\ Workers[i].keyshare # NULL
+    /\ Workers[i].requesterSk # NULL
     /\ Workers[i].currentTask # NULL
     /\ Time < Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSubmitHash_MessageFormat(i, msg)
@@ -306,7 +311,7 @@ TaskTimeout(i) ==
            ![i].state = IF nextTask = NULL THEN "SEND_QUERY_TASKS" ELSE "GET_KEY",
            ![i].currentTask = nextTask,
            ![i].confirmedTasks = newTasks,
-           ![i].keyshare = NULL, 
+           ![i].requesterSk = NULL, 
            ![i].currentHash = NULL]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
@@ -334,5 +339,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 11:05:48 CET 2024 by jungc
+\* Last modified Mon Feb 26 12:50:45 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

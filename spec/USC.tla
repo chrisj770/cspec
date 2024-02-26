@@ -42,7 +42,11 @@ ReceiveRegister ==
           ELSE LET newKey == ToString(NextPubkey) 
                IN /\ Register(newKey, msg)
                   /\ NextPubkey' = NextPubkey + 1
-                  /\ LET response == [type |-> "REGISTERED", address |-> "USC", key |-> newKey]
+                  /\ LET response == [type |-> "REGISTERED", 
+                                   address |-> "USC", 
+                                       key |-> newKey, 
+                                        pk |-> [address |-> newKey, type |-> "public", share |-> NULL], 
+                                        sk |-> [address |-> newKey, type |-> "private", share |-> NULL]]
                      IN IF msg.userType = "WORKER"
                         THEN /\ Workers' = [Workers EXCEPT ![msg.src].msgs = Workers[msg.src].msgs \union {response}]
                              /\ UNCHANGED <<Requesters>>
@@ -81,5 +85,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 11:08:03 CET 2024 by jungc
+\* Last modified Mon Feb 26 12:38:41 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

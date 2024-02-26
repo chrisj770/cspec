@@ -41,12 +41,14 @@ Init ==
                     msgs |-> {}, 
                     state |-> "SEND_REGISTER",
                     address |-> "",
+                    pk |-> NULL, 
+                    sk |-> NULL,
                     tasks |-> Tasks,
                     currentTask |-> NULL,
                     unconfirmedWorkers |-> {}, 
                     confirmedWorkers |-> {},
-                    hashes |-> {},
-                    data |-> {}]]
+                    submittedHashes |-> {},
+                    submittedData |-> {}]]
 
 SendRegister_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_REGISTER"
@@ -64,7 +66,7 @@ ReceiveRegister_MessageFormat(i, msg) ==
     /\ msg.address = "USC"
     /\ \/ msg.type = "NOT_REGISTERED"
        \/ /\ msg.type = "REGISTERED"
-          /\ "key" \in DOMAIN msg
+          /\ \A f \in {"key", "pk", "sk"}: f \in DOMAIN msg
 
 ReceiveRegister_IsEnabled(i) == 
     /\ Requesters[i].state = "RECV_REGISTER"
@@ -73,13 +75,15 @@ ReceiveRegister_IsEnabled(i) ==
 ReceiveRegister(i) == 
     /\ ReceiveRegister_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveRegister_MessageFormat(i, m)
-       IN Requesters' = [Requesters EXCEPT ![i].address = IF msg.type = "REGISTERED"
-                                                          THEN msg.key 
-                                                          ELSE Requesters[i].address,
-                                           ![i].msgs = Requesters[i].msgs \ {msg},
-                                           ![i].state = IF msg.type = "REGISTERED"
-                                                        THEN "SEND_POST_TASKS"
-                                                        ELSE "TERMINATED"]
+           newAddress == IF msg.type = "REGISTERED" THEN msg.key ELSE Requesters[i].address
+           newPk == IF msg.type = "REGISTERED" THEN msg.pk ELSE Requesters[i].pk
+           newSk == IF msg.type = "REGISTERED" THEN msg.sk ELSE Requesters[i].sk
+           nextState == IF msg.type = "REGISTERED" THEN "SEND_POST_TASKS" ELSE "TERMINATED"
+       IN Requesters' = [Requesters EXCEPT ![i].address = newAddress,
+                                           ![i].pk = newPk,
+                                           ![i].sk = newSk,
+                                           ![i].msgs = Requesters[i].msgs \ {msg}, 
+                                           ![i].state = nextState]
     /\ UNCHANGED <<Workers, USCs, TSCs, Storage>>
     
 SendPostTasks_IsEnabled(i) == 
@@ -228,7 +232,7 @@ ReceiveQueryHashes(i) ==
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryHashes_MessageFormat(i, m)
        IN /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                               ![i].state = "SEND_QUERY_DATA", 
-                                              ![i].hashes = msg.hashes]
+                                              ![i].submittedHashes = msg.hashes]
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
 
 SendQueryData_IsEnabled(i) == 
@@ -241,7 +245,7 @@ SendQueryData(i) ==
     /\ SendQueryData_IsEnabled(i)
     /\ LET request == [type |-> "QUERY_DATA", 
                       address |-> Requesters[i].address, 
-                      hashes |-> Requesters[i].hashes]
+                      hashes |-> Requesters[i].submittedHashes]
        IN /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {request}]
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_DATA"]
     /\ UNCHANGED <<Workers, TSCs, USCs>> 
@@ -262,7 +266,7 @@ ReceiveQueryData(i) ==
     /\ ReceiveQueryData_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryData_MessageFormat(i, m)
        IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                           ![i].data = msg.data,
+                                           ![i].submittedData = msg.data,
                                            ![i].state = "EVALUATE"]
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
@@ -270,7 +274,7 @@ Evaluate_IsEnabled(i) ==
     /\ Requesters[i].state = "EVALUATE"
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
-    /\ Cardinality(Requesters[i].data) = Requesters[i].currentTask.numParticipants
+    /\ Cardinality(Requesters[i].submittedData) = Requesters[i].currentTask.numParticipants
     /\ Time < Requesters[i].currentTask.Pd
  
 Evaluate(i) ==
@@ -322,8 +326,8 @@ TaskTimeout(i) ==
            ![i].currentTask = nextTask,
            ![i].unconfirmedWorkers = IF nextTask = NULL THEN {} ELSE nextTask.participants,
            ![i].confirmedWorkers = {}, 
-           ![i].hashes = {},
-           ![i].data = {}]
+           ![i].submittedHashes  = {},
+           ![i].submittedData = {}]
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
 Terminating == 
@@ -354,5 +358,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 11:06:39 CET 2024 by jungc
+\* Last modified Mon Feb 26 12:56:27 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc
