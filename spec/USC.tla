@@ -9,7 +9,10 @@ Init ==
     USCs = [msgs |-> {},
               pk |-> [address |-> "USC", type |-> "public_key"],
            users |-> {}]
-                     
+
+(***************************************************************************)
+(*                                REGISTER                                 *)
+(***************************************************************************)    
 IsRegistered(key, type) == 
     \E user \in USCs.users : /\ user.pk.address = key
                              /\ user.reputation # NULL
@@ -26,6 +29,7 @@ Register(key, msg) ==
                                !.msgs = USCs.msgs \ {msg}]
     
 ReceiveRegister_MessageFormat(msg) == 
+    /\ \A f \in {"from", "type", "userType"} : f \in DOMAIN msg
     /\ msg.type = "REGISTER"
     /\ msg.userType \in {"WORKER", "REQUESTER"}
     
@@ -59,10 +63,13 @@ ReceiveRegister ==
                              /\ UNCHANGED <<Workers>> 
     /\ UNCHANGED <<TSCs>> 
 
+(***************************************************************************)
+(*                             GET_REPUTATION                              *)
+(***************************************************************************) 
 ReceiveGetReputation_MessageFormat(msg) == 
-    /\ msg.type = "GET_REPUTATION" 
+    /\ \A f \in {"from", "type", "user", "task"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
-    /\ \A f \in {"user", "task"} : f \in DOMAIN msg
+    /\ msg.type = "GET_REPUTATION" 
 
 ReceiveGetReputation_IsEnabled == 
     /\ \E msg \in USCs.msgs : ReceiveGetReputation_MessageFormat(msg)
@@ -78,7 +85,7 @@ ReceiveGetReputation ==
                         from |-> USCs.pk,
                   reputation |-> IF isRegistered THEN user.reputation ELSE NULL, 
                         user |-> IF isRegistered THEN msg.user ELSE NULL, 
-                       task |-> msg.task]
+                        task |-> msg.task]
        IN /\ SendMessage(TSCs.pk, response)
           /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}]
     /\ UNCHANGED <<Workers, Requesters, NextPubkey>>
@@ -90,5 +97,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 13:56:08 CET 2024 by jungc
+\* Last modified Mon Feb 26 17:25:52 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

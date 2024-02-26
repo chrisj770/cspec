@@ -39,7 +39,10 @@ Init ==
            currentTask |-> NULL,
            requesterSk |-> NULL, 
            currentHash |-> NULL]]
-
+           
+(***************************************************************************)
+(*                     SEND_REGISTER / RECV_REGISTER                       *)
+(***************************************************************************)
 SendRegister_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_REGISTER"
 
@@ -53,10 +56,10 @@ SendRegister(i) ==
     /\ UNCHANGED <<Requesters, TSCs, Storage>>
 
 ReceiveRegister_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = USCs.pk
-    /\ \/ msg.type = "NOT_REGISTERED"
-       \/ /\ msg.type = "REGISTERED"
-          /\ \A f \in {"key", "pk", "sk"}: f \in DOMAIN msg
+    /\ msg.type \in {"REGISTERED", "NOT_REGISTERED"}
+    /\ msg.type = "REGISTERED" \equiv \A f \in {"key", "pk", "sk"}: f \in DOMAIN msg
 
 ReceiveRegister_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_REGISTER"
@@ -65,17 +68,20 @@ ReceiveRegister_IsEnabled(i) ==
 ReceiveRegister(i) == 
     /\ ReceiveRegister_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveRegister_MessageFormat(i, m)
-           newAddress == IF msg.type = "REGISTERED" THEN msg.key ELSE Workers[i].address
-           newPk == IF msg.type = "REGISTERED" THEN msg.pk ELSE Workers[i].pk
-           newSk == IF msg.type = "REGISTERED" THEN msg.sk ELSE Workers[i].sk
-           nextState == IF msg.type = "REGISTERED" THEN "SEND_QUERY_TASKS" ELSE "TERMINATED"
-       IN Workers' = [Workers EXCEPT ![i].address = newAddress,
-                                     ![i].pk = newPk,
-                                     ![i].sk = newSk,
-                                     ![i].msgs = Workers[i].msgs \ {msg}, 
-                                     ![i].state = nextState]
+       IN \/ /\ msg.type = "REGISTERED" 
+             /\ Workers' = [Workers EXCEPT ![i].address = msg.key,
+                                           ![i].pk = msg.pk,
+                                           ![i].sk = msg.sk,
+                                           ![i].msgs = Workers[i].msgs \ {msg}, 
+                                           ![i].state = "SEND_QUERY_TASKS"]
+          \/ /\ msg.type # "REGISTERED"
+             /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg}, 
+                                           ![i].state = "TERMINATED"]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
-
+    
+(***************************************************************************)
+(*                   SEND_QUERY_TASKS / RECV_QUERY_TASKS                   *)
+(***************************************************************************)
 SendQueryTasks_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_QUERY_TASKS"
 
@@ -89,60 +95,65 @@ SendQueryTasks(i) ==
     /\ UNCHANGED <<Requesters, USCs, Storage>>
     
 ReceiveQueryTasks_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
-    /\ msg.type \in {"TASKS", "INVALID"}
+    /\ msg.type \in {"TASKS", "INVALID", "NOT_REGISTERED"}
+    /\ msg.type = "TASKS" \equiv "tasks" \in DOMAIN msg
 
 ReceiveQueryTasks_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_QUERY_TASKS"
     /\ \E msg \in Workers[i].msgs : ReceiveQueryTasks_MessageFormat(i, msg)
     
 ReceiveQueryTasks_Success(i, msg) == 
-    Workers' = [Workers EXCEPT 
-                ![i].msgs = Workers[i].msgs \ {msg},
-                ![i].unconfirmedTasks = msg.tasks,
-                ![i].state = IF Cardinality(msg.tasks) > 0
-                             THEN "SEND_CONFIRM_TASK"
-                             ELSE "TERMINATED"]
+    LET nextState == IF Cardinality(msg.tasks) > 0 THEN "SEND_CONFIRM_TASK" ELSE "TERMINATED"
+    IN Workers' = [Workers EXCEPT 
+                    ![i].msgs = Workers[i].msgs \ {msg},
+                    ![i].unconfirmedTasks = msg.tasks,
+                    ![i].state = nextState]
     
 ReceiveQueryTasks(i) ==
     /\ ReceiveQueryTasks_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveQueryTasks_MessageFormat(i, m)
-       IN IF msg.type = "TASKS" 
-          THEN ReceiveQueryTasks_Success(i, msg)
-          ELSE Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
-                                          ![i].state = "SEND_QUERY_TASKS"]
+       IN \/ /\ msg.type = "TASKS" 
+             /\ ReceiveQueryTasks_Success(i, msg)
+          \/ /\ msg.type # "TASKS"
+             /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
+                                           ![i].state = "SEND_QUERY_TASKS"]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
-
+    
+(***************************************************************************)
+(*                  SEND_CONFIRM_TASK / RECV_CONFIRM_TASK                  *)
+(***************************************************************************)
 SendConfirmTask_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_CONFIRM_TASK" 
 
 SendConfirmTask(i) == 
     /\ SendConfirmTask_IsEnabled(i)
-    /\ LET currTask == CHOOSE tsc \in Workers[i].unconfirmedTasks :
-                       \A other \in Workers[i].unconfirmedTasks: 
-                       tsc # other => tsc.taskId < other.taskId
+    /\ LET nextConfTask == CHOOSE tsc \in Workers[i].unconfirmedTasks :
+                           \A other \in Workers[i].unconfirmedTasks: 
+                           tsc # other => tsc.taskId < other.taskId
            request == [type |-> "CONFIRM_TASK", 
                        from |-> Workers[i].pk, 
-                       task |-> currTask.address]
+                       task |-> nextConfTask.address]
        IN /\ SendMessage(TSCs.pk, request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_CONFIRM_TASK"]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
 
 ReceiveConfirmTask_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
-    /\ \/ msg.type \in {"INVALID", "CANCELED", "COMPLETED", "NOT_REGISTERED"}
-       \/ /\ msg.type \in {"CONFIRM_FAIL", "CONFIRM_SUCCESS"}
-          /\ msg.task \in {t.address : t \in Workers[i].unconfirmedTasks}
+    /\ msg.type \in {"INVALID", "CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS", "NOT_REGISTERED"}
+    /\ msg.type \in {"INVALID", "CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS"} \equiv "task" \in DOMAIN msg
 
 ReceiveConfirmTask_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_CONFIRM_TASK"
     /\ \E msg \in Workers[i].msgs : ReceiveConfirmTask_MessageFormat(i, msg)
     
 ReceiveConfirmTask_Success(i, msg, task) == 
-    LET newTasks == Workers[i].confirmedTasks \union {task} 
+    LET finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
+        newTasks == Workers[i].confirmedTasks \union {task} 
         firstTask == CHOOSE t \in newTasks: \A y \in newTasks: 
                             t.taskId # y.taskId => t.taskId < y.taskId
-        finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
     IN Workers' = [Workers EXCEPT 
                    ![i].msgs = Workers[i].msgs \ {msg},
                    ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
@@ -151,11 +162,11 @@ ReceiveConfirmTask_Success(i, msg, task) ==
                    ![i].state = IF finished THEN "RECV_SEND_KEY" ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask_Failed(i, msg, task) == 
-    LET newTasks == Workers[i].confirmedTasks
+    LET finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
+        newTasks == Workers[i].confirmedTasks
         firstTask == IF Cardinality(newTasks) = 0 THEN NULL 
                      ELSE CHOOSE t \in newTasks: \A y \in newTasks: 
                                  t.taskId # y.taskId => t.taskId < y.taskId
-        finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
     IN Workers' = [Workers EXCEPT 
                    ![i].msgs = Workers[i].msgs \ {msg},
                    ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId},
@@ -165,22 +176,29 @@ ReceiveConfirmTask_Failed(i, msg, task) ==
                                     THEN "RECV_SEND_KEY"
                                     ELSE "SEND_QUERY_TASK"
                                 ELSE "SEND_CONFIRM_TASK"]
-
+                                
 ReceiveConfirmTask(i) == 
     /\ ReceiveConfirmTask_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveConfirmTask_MessageFormat(i, m)
-       IN IF msg.type \in {"CONFIRM_SUCCESS", "CONFIRM_FAILED"}
-          THEN LET task == CHOOSE t \in Workers[i].unconfirmedTasks : msg.task = t.address
-               IN IF msg.type = "CONFIRM_SUCCESS" 
-                  THEN ReceiveConfirmTask_Success(i, msg, task)
-                  ELSE ReceiveConfirmTask_Failed(i, msg, task)
-          ELSE Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg}]
+       IN \/ /\ msg.type # "NOT_REGISTERED"
+             /\ LET task == CHOOSE t \in Workers[i].unconfirmedTasks : msg.task = t.address
+                IN \/ /\ msg.type = "CONFIRM_SUCCESS" 
+                      /\ ReceiveConfirmTask_Success(i, msg, task)
+                   \/ /\ msg.type # "CONFIRM_SUCCESS"
+                      /\ ReceiveConfirmTask_Failed(i, msg, task)
+          \/ /\ msg.type = "NOT_REGISTERED"
+             /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
+                                           ![i].state = "TERMINATED"]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
 
+(***************************************************************************)
+(*                             RECV_SEND_KEY                               *)
+(***************************************************************************)
 ReceiveSendKey_MessageFormat(i, msg) == 
-    /\ msg.type = "SEND_KEY" 
+    /\ \A f \in {"from", "type", "task", "keyshare"} : f \in DOMAIN msg
     /\ msg.from = Workers[i].currentTask.owner
-    /\ "keyshare" \in DOMAIN msg
+    /\ msg.type = "SEND_KEY" 
+    /\ msg.task = Workers[i].currentTask.address
 
 ReceiveSendKey_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SEND_KEY"
@@ -194,13 +212,17 @@ ReceiveSendKey(i) ==
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveSendKey_MessageFormat(i, m)
            decryptedKeyshare == Decrypt(msg.keyshare, Workers[i].sk)
            response == [type |-> "ACK", 
-                        from |-> Workers[i].pk]
+                        from |-> Workers[i].pk,
+                        task |-> Workers[i].currentTask.address]
        IN /\ SendMessage(msg.from, response)
           /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
                                         ![i].requesterSk = decryptedKeyshare, 
                                         ![i].state = "COMPUTE"] 
     /\ UNCHANGED <<TSCs, USCs, Storage>>
-
+    
+(***************************************************************************)
+(*                                COMPUTE                                  *)
+(***************************************************************************)
 Compute_IsEnabled(i) == 
     /\ Workers[i].state = "COMPUTE"
     /\ Workers[i].requesterSk # NULL 
@@ -211,7 +233,10 @@ Compute(i) ==
     /\ Compute_IsEnabled(i) 
     /\ Workers' = [Workers EXCEPT ![i].state = "SEND_SUBMIT_DATA"] \* TODO
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
-
+    
+(***************************************************************************)
+(*                   SEND_SUBMIT_DATA / RECV_SUBMIT_DATA                   *)
+(***************************************************************************)
 SendSubmitData_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_SUBMIT_DATA" 
     /\ Workers[i].requesterSk # NULL
@@ -230,6 +255,7 @@ SendSubmitData(i) ==
     /\ UNCHANGED <<Requesters, TSCs, USCs>>
 
 ReceiveSubmitData_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type", "hash"} : f \in DOMAIN msg
     /\ msg.type = "HASH" 
     /\ msg.from = "STORAGE"
 
@@ -248,7 +274,10 @@ ReceiveSubmitData(i) ==
                                      ![i].state = "SEND_SUBMIT_HASH",
                                      ![i].currentHash = msg.hash]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
-
+    
+(***************************************************************************)
+(*                   SEND_SUBMIT_HASH / RECV_SUBMIT_HASH                   *)
+(***************************************************************************)
 SendSubmitHash_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_SUBMIT_HASH"
     /\ Workers[i].requesterSk # NULL
@@ -267,9 +296,10 @@ SendSubmitHash(i) ==
     /\ UNCHANGED <<Requesters, USCs, Storage>>
 
 ReceiveSubmitHash_MessageFormat(i, msg) == 
-    /\ msg.type = "ACK" 
-    /\ msg.task = Workers[i].currentTask.address
+    /\ \A f \in {"from", "type"} : f \in DOMAIN msg 
     /\ msg.from = TSCs.pk
+    /\ msg.type \in {"ACK", "INVALID", "COMPLETED", "CANCELED", "NOT_REGISTERED"}
+    /\ msg.type \in {"ACK", "INVALID", "COMPLETED", "CANCELED"} \equiv "task" \in DOMAIN msg
 
 ReceiveSubmitHash_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SUBMIT_HASH" 
@@ -285,6 +315,9 @@ ReceiveSubmitHash(i) ==
                                      ![i].state = "RECV_WEIGHTS"]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
+(***************************************************************************)
+(*                     AUTOMATIC TIMEOUTS & TERMINATION                    *)
+(***************************************************************************)
 TaskTimeout_IsEnabled(i) == 
     /\ Workers[i].currentTask # NULL
     /\ \/ /\ Time >= Workers[i].currentTask.Sd          \* Case 1: Submission not complete before Submission deadline
@@ -342,5 +375,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 14:27:51 CET 2024 by jungc
+\* Last modified Mon Feb 26 18:19:02 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

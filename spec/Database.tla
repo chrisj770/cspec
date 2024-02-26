@@ -6,6 +6,9 @@ TypeOK == TRUE
 Init == Storage = [msgs |-> {}, 
                    data |-> {}]
 
+(***************************************************************************)
+(*                               SUBMIT_DATA                               *)
+(***************************************************************************) 
 ReceiveSubmitData_MessageFormat(msg) == 
     /\ msg.type = "SUBMIT_DATA" 
     /\ IsWorker(msg.from)
@@ -28,6 +31,9 @@ ReceiveSubmitData ==
           /\ SendMessage(msg.from, response)
     /\ UNCHANGED <<Requesters>>
 
+(***************************************************************************)
+(*                                QUERY_DATA                               *)
+(***************************************************************************) 
 ReceiveQueryData_MessageFormat(msg) == 
     /\ msg.type = "QUERY_DATA"
     /\ \/ IsWorker(msg.from)
@@ -57,5 +63,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 14:19:35 CET 2024 by jungc
+\* Last modified Mon Feb 26 17:27:20 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc
