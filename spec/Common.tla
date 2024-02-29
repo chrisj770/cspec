@@ -33,6 +33,8 @@ SendMessage(recipient, message) ==
          THEN TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \union {message}]
     ELSE IF recipient.address = "USC"
          THEN USCs' = [USCs EXCEPT !.msgs = USCs.msgs \union {message}]
+    ELSE IF recipient.address = "STORAGE"
+         THEN Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {message}]
     ELSE IF IsRequester(recipient)
          THEN LET rid == GetRequester(recipient)
               IN Requesters' = [Requesters EXCEPT ![rid].msgs = 
@@ -42,6 +44,15 @@ SendMessage(recipient, message) ==
               IN Workers' = [Workers EXCEPT ![wid].msgs =
                              Workers[wid].msgs \union {message}]
     ELSE FALSE
+  
+(* 
+\* (TODO: Might need this for later) 
+SendWorkerBroadcast(recipientSet, message) == 
+    Workers' = [i \in 1..NumWorkers |-> [Workers[i] EXCEPT
+                 !.msgs = IF Workers[i].pk \in recipientSet
+                          THEN Workers[i].msgs \union {message}
+                          ELSE Workers[i].msgs]]
+*)
     
 (***************************************************************************)
 (* During registration, each user receive a pair of public/private         *)
@@ -92,5 +103,5 @@ Decrypt(data, decryptionKey) ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 14:41:35 CET 2024 by jungc
+\* Last modified Thu Feb 29 16:33:49 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

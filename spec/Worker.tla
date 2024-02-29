@@ -21,6 +21,8 @@ TypeOK ==
          "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
          "SEND_QUERY_DATA",     \* Receive list of sensory data from STORAGE
          "VERIFY",              \* Run verification process
+         "SEND_DATA", 
+         "RECV_DATA",
          "SEND_SUBMIT_EVAL",    \* Attempt to submit evaluation results to TSC  
          "RECV_SUBMIT_EVAL",    \* Receive Acknowledgement for evaluation results from TSC
          "TERMINATED"}]         
@@ -29,16 +31,64 @@ StateConsistency == TRUE
          
 Init ==
     Workers = [w \in 1..NumWorkers |-> [
-                  msgs |-> {}, 
-                 state |-> "SEND_REGISTER",
-               address |-> "",
-                    pk |-> NULL, 
-                    sk |-> NULL,
-      unconfirmedTasks |-> {}, 
-        confirmedTasks |-> {}, 
-           currentTask |-> NULL,
-           requesterSk |-> NULL, 
-           currentHash |-> NULL]]
+                  msgs |-> {},              \* Message queue 
+                 state |-> "SEND_REGISTER", \* Current state
+               address |-> "",              \* Address/Pseudonym
+                    pk |-> NULL,            \* Public key (obtained from USC during registration)
+                    sk |-> NULL,            \* Private key (obtained from USC during registration)
+      unconfirmedTasks |-> {},              \* List of unconfirmed tasks (obtained from TSC during "RECV_QUERY_TASKS")
+        confirmedTasks |-> {},              \* List of confirmed tasks (obtained via "CONFIRM_SUCCESS")
+           currentTask |-> NULL,            \* Current task 
+           requesterSk |-> NULL,            \* Partial private key-share (obtained from Requester during "RECV_SEND_KEY")
+           currentHash |-> NULL,            \* Data hash (obtained via submitting data to STORAGE during "RECV_SUBMIT_DATA")
+      requesterWeights |-> NULL,            \* Evaluated worker weights (obtained from Requester during "RECV_WEIGHTS")
+      participantsSent |-> {},              \* Set of other workers for sending cyphertext
+      participantsRcvd |-> {},              \* Set of other workers for receiving cyphertexts
+         submittedData |-> {},              \* Set of data submitted by all workers (obtained from other workers during "VERIFY")
+               weights |-> {}]] 
+
+CATDAlgorithm(i) == 
+    {[participant |-> w.address, weight |-> "placeholder"] :
+     w \in Workers[i].submittedData}
+     
+Terminate(i, msg) == 
+    Workers' = [Workers EXCEPT
+        ![i].msgs = IF msg # NULL 
+                    THEN Workers[i].msgs \ {msg}
+                    ELSE Workers[i].msgs, 
+        ![i].state = "TERMINATED",
+        ![i].currentTask = NULL, 
+        ![i].requesterSk = NULL,
+        ![i].currentHash = NULL, 
+        ![i].requesterWeights = NULL, 
+        ![i].participantsSent = {},
+        ![i].participantsRcvd = {}, 
+        ![i].submittedData = {}, 
+        ![i].weights = {}]
+      
+GetNextTask(i) == 
+    IF Cardinality(Workers[i].confirmedTasks) = 0 THEN NULL 
+    ELSE CHOOSE t \in Workers[i].confirmedTasks : \A y \in Workers[i].tasks : 
+                t.taskId # y.taskId => t.taskId < y.taskId 
+      
+NextTask(i, msg) == 
+    LET nextTask == GetNextTask(i)
+    IN Workers' = [Workers EXCEPT 
+        ![i].msgs = IF msg # NULL 
+                    THEN Workers[i].msgs \ {msg}
+                    ELSE Workers[i].msgs,
+        ![i].state = IF nextTask = NULL 
+                     THEN "SEND_QUERY_TASKS"
+                     ELSE "RECV_SEND_KEY", 
+        ![i].confirmedTasks = Workers[i].confirmedTasks \ {nextTask},
+        ![i].currentTask = nextTask, 
+        ![i].requesterSk = NULL,
+        ![i].currentHash = NULL, 
+        ![i].requesterWeights = NULL, 
+        ![i].participantsSent = {},
+        ![i].participantsRcvd = {}, 
+        ![i].submittedData = {}, 
+        ![i].weights = {}]
            
 (***************************************************************************)
 (*                     SEND_REGISTER / RECV_REGISTER                       *)
@@ -75,8 +125,7 @@ ReceiveRegister(i) ==
                                            ![i].msgs = Workers[i].msgs \ {msg}, 
                                            ![i].state = "SEND_QUERY_TASKS"]
           \/ /\ msg.type # "REGISTERED"
-             /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg}, 
-                                           ![i].state = "TERMINATED"]
+             /\ Terminate(i, msg)
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
 (***************************************************************************)
@@ -105,11 +154,13 @@ ReceiveQueryTasks_IsEnabled(i) ==
     /\ \E msg \in Workers[i].msgs : ReceiveQueryTasks_MessageFormat(i, msg)
     
 ReceiveQueryTasks_Success(i, msg) == 
-    LET nextState == IF Cardinality(msg.tasks) > 0 THEN "SEND_CONFIRM_TASK" ELSE "TERMINATED"
-    IN Workers' = [Workers EXCEPT 
+    LET validTasks == {t \in msg.tasks : t.state = "Available"}
+    IN IF Cardinality(validTasks) = 0 
+       THEN Terminate(i, msg)
+       ELSE Workers' = [Workers EXCEPT 
                     ![i].msgs = Workers[i].msgs \ {msg},
-                    ![i].unconfirmedTasks = msg.tasks,
-                    ![i].state = nextState]
+                    ![i].unconfirmedTasks = validTasks,
+                    ![i].state = "SEND_CONFIRM_TASK"]
     
 ReceiveQueryTasks(i) ==
     /\ ReceiveQueryTasks_IsEnabled(i)
@@ -157,19 +208,23 @@ ReceiveConfirmTask_Success(i, msg, task) ==
     IN Workers' = [Workers EXCEPT 
                    ![i].msgs = Workers[i].msgs \ {msg},
                    ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
-                   ![i].confirmedTasks = newTasks,
+                   ![i].confirmedTasks = IF finished THEN newTasks \ {firstTask} ELSE newTasks,
                    ![i].currentTask = IF finished THEN firstTask ELSE NULL,
                    ![i].state = IF finished THEN "RECV_SEND_KEY" ELSE "SEND_CONFIRM_TASK"]
 
 ReceiveConfirmTask_Failed(i, msg, task) == 
     LET finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
-        newTasks == Workers[i].confirmedTasks
-        firstTask == IF Cardinality(newTasks) = 0 THEN NULL 
-                     ELSE CHOOSE t \in newTasks: \A y \in newTasks: 
+        firstTask == IF Cardinality(Workers[i].confirmedTasks) = 0 THEN NULL 
+                     ELSE CHOOSE t \in Workers[i].confirmedTasks: \A y \in Workers[i].confirmedTasks: 
                                  t.taskId # y.taskId => t.taskId < y.taskId
     IN Workers' = [Workers EXCEPT 
                    ![i].msgs = Workers[i].msgs \ {msg},
                    ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId},
+                   ![i].confirmedTasks = IF finished THEN 
+                                            IF Cardinality(Workers[i].confirmedTasks) > 0
+                                            THEN Workers[i].confirmedTasks \ {firstTask}
+                                            ELSE {} 
+                                         ELSE Workers[i].confirmedTasks,               
                    ![i].currentTask = IF finished THEN firstTask ELSE NULL,
                    ![i].state = IF finished THEN
                                     IF Cardinality(Workers[i].confirmedTasks) > 0
@@ -187,8 +242,7 @@ ReceiveConfirmTask(i) ==
                    \/ /\ msg.type # "CONFIRM_SUCCESS"
                       /\ ReceiveConfirmTask_Failed(i, msg, task)
           \/ /\ msg.type = "NOT_REGISTERED"
-             /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
-                                           ![i].state = "TERMINATED"]
+             /\ Terminate(i, msg)
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
 
 (***************************************************************************)
@@ -257,7 +311,7 @@ SendSubmitData(i) ==
 ReceiveSubmitData_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type", "hash"} : f \in DOMAIN msg
     /\ msg.type = "HASH" 
-    /\ msg.from = "STORAGE"
+    /\ msg.from = Storage.pk
 
 ReceiveSubmitData_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_SUBMIT_DATA" 
@@ -316,6 +370,214 @@ ReceiveSubmitHash(i) ==
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
 (***************************************************************************)
+(*                              RECV_WEIGHTS                               *)
+(***************************************************************************)
+ReceiveWeights_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type", "task", "weights"} : f \in DOMAIN msg
+    /\ msg.from = Workers[i].currentTask.owner
+    /\ msg.task = Workers[i].currentTask.address 
+    /\ msg.type = "WEIGHTS"
+
+ReceiveWeights_IsEnabled(i) == 
+    /\ Workers[i].state = "RECV_WEIGHTS"
+    /\ Workers[i].currentTask # NULL 
+    /\ Workers[i].requesterSk # NULL
+    /\ Time < Workers[i].currentTask.Pd
+    /\ \E msg \in Workers[i].msgs : ReceiveWeights_MessageFormat(i, msg) 
+    
+ReceiveWeights(i) == 
+    /\ ReceiveWeights_IsEnabled(i) 
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveWeights_MessageFormat(i, m)
+           otherParticipants == {w.participant : w \in {weight \in msg.weights : 
+                                 weight.participant # Workers[i].pk}}
+           response == [type |-> "ACK", 
+                        from |-> Workers[i].pk,
+                        task |-> Workers[i].currentTask.address] 
+       IN /\ SendMessage(msg.from, response)
+          /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg}, 
+                                        ![i].requesterWeights = msg.weights,
+                                        ![i].participantsSent = otherParticipants, 
+                                        ![i].participantsRcvd = otherParticipants,
+                                        ![i].state = "SEND_QUERY_DATA"]
+    /\ UNCHANGED <<TSCs, USCs, Storage>>
+    
+(***************************************************************************)
+(*                    SEND_QUERY_DATA / RECV_QUERY_DATA                    *)
+(***************************************************************************)
+SendQueryData_IsEnabled(i) == 
+    /\ Workers[i].state = "SEND_QUERY_DATA"
+    /\ Workers[i].currentTask # NULL
+    /\ Time < Workers[i].currentTask.Pd
+
+SendQueryData(i) == 
+    /\ SendQueryData_IsEnabled(i)
+    /\ LET request == [type |-> "QUERY_DATA", 
+                       from |-> Workers[i].pk, 
+                     hashes |-> {Workers[i].currentHash}]
+       IN /\ SendMessage(Storage.pk, request)
+          /\ Workers' = [Workers EXCEPT ![i].state = "RECV_QUERY_DATA"]
+    /\ UNCHANGED <<Requesters, TSCs, USCs>> 
+    
+ReceiveQueryData_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type", "allData"} : f \in DOMAIN msg
+    /\ msg.from = Storage.pk
+    /\ msg.type = "DATA"
+
+ReceiveQueryData_IsEnabled(i) ==
+    /\ Workers[i].state = "RECV_QUERY_DATA"
+    /\ Workers[i].currentTask # NULL
+    /\ \E msg \in Workers[i].msgs : ReceiveQueryData_MessageFormat(i, msg)
+    /\ Time < Workers[i].currentTask.Pd
+
+ReceiveQueryData(i) == 
+    /\ ReceiveQueryData_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveQueryData_MessageFormat(i, m)
+           decryptedData == {[address |-> d.address,
+                              submission |-> Decrypt(d.submission, Workers[i].requesterSk)]
+                            : d \in msg.allData}
+       IN Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
+                                     ![i].submittedData = decryptedData,
+                                     ![i].state = IF Cardinality(Workers[i].participantsSent) > 0 
+                                                  THEN "SEND_DATA"
+                                                  ELSE "VERIFY"]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+    
+(***************************************************************************)
+(*                 REQUEST_DATA / RECEIVE_DATA/ SEND_DATA                  *)
+(***************************************************************************)
+RequestData_IsEnabled(i) == 
+    /\ Workers[i].state = "SEND_DATA"
+    /\ Workers[i].currentTask # NULL 
+    /\ Workers[i].submittedData # {}
+    /\ Workers[i].participantsSent # {}
+    /\ Time < Workers[i].currentTask.Pd
+    
+RequestData(i) == 
+    /\ RequestData_IsEnabled(i)
+    /\ LET nextWorkerPk == CHOOSE r \in Workers[i].participantsSent : TRUE
+           request == [type |-> "GET_DATA",
+                       from |-> Workers[i].pk,
+                       task |-> Workers[i].currentTask.address]
+       IN /\ SendMessage(nextWorkerPk, request)
+          /\ Workers' = [Workers EXCEPT ![i].state = "RECV_DATA"]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+
+ReceiveData_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type", "task", "data"} : f \in DOMAIN msg
+    /\ msg.from \in Workers[i].participantsSent
+    /\ msg.type = "DATA"
+    /\ msg.task = Workers[i].currentTask.address
+
+ReceiveData_IsEnabled(i) == 
+    /\ Workers[i].state = "RECV_DATA"
+    /\ Workers[i].currentTask # NULL 
+    /\ \E msg \in Workers[i].msgs : ReceiveData_MessageFormat(i, msg)
+    /\ Time < Workers[i].currentTask.Pd
+
+ReceiveData(i) == 
+    /\ ReceiveData_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveData_MessageFormat(i, m) 
+           worker == CHOOSE w \in Workers[i].otherParticipants : w = msg.from
+       IN Workers' = [Workers EXCEPT 
+                ![i].msgs = Workers[i].msgs \ {msg}, 
+                ![i].participantsSent = Workers[i].participantsSent \ {worker},
+                ![i].submittedData = Workers[i].submittedData \union {msg.data}, 
+                ![i].state = IF Cardinality(Workers[i].participantsSent) = 1 
+                             THEN IF /\ Cardinality(Workers[i].participantsRcvd) = 0 
+                                     /\ Cardinality(Workers[i].submittedData) = 
+                                        Workers[i].currentTask.numParticipants 
+                                  THEN "VERIFY"
+                                  ELSE "RECV_DATA"
+                             ELSE "SEND_DATA"]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>  
+    
+SendData_MessageFormat(i, msg) == 
+    /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
+    /\ msg.from \in Workers[i].participantsRcvd
+    /\ msg.type = "GET_DATA"
+    /\ msg.task = Workers[i].currentTask.address
+    
+SendData_IsEnabled(i) == 
+    /\ Workers[i].state \in {"SEND_DATA", "RECV_DATA"} 
+    /\ Workers[i].currentTask # NULL 
+    /\ \E msg \in Workers[i].msgs : SendData_MessageFormat(i, msg)
+    /\ Time < Workers[i].currentTask.Pd
+    
+SendData(i) == 
+    /\ SendData_IsEnabled(i) 
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveData_MessageFormat(i, m) 
+           worker == CHOOSE w \in Workers[i].otherParticipants : w = msg.from
+           response == [type |-> "DATA", 
+                        from |-> Workers[i].pk, 
+                        data |-> CHOOSE w \in Workers[i].submittedData : 
+                                 w.participant = Workers[i].pk,
+                        task |-> Workers[i].currentTask.address]
+       IN /\ SendMessage(msg.from, response)
+          /\ Workers' = [Workers EXCEPT 
+                    ![i].msgs = Workers[i].msgs \ {msg}, 
+                    ![i].participantsRcvd = Workers[i].participantsRcvd \ {worker}, 
+                    ![i].state = IF /\ Cardinality(Workers[i].participantsRcvd) = 1
+                                    /\ Cardinality(Workers[i].participantsSent) = 0
+                                    /\ Cardinality(Workers[i].submittedData) = 
+                                       Workers[i].currentTask.numParticipants
+                                 THEN "VERIFY"
+                                 ELSE Workers[i].state]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+       
+    
+(***************************************************************************)
+(*                                  VERIFY                                 *)
+(***************************************************************************)
+Verify_IsEnabled(i) == 
+    /\ Workers[i].state = "VERIFY"
+    /\ Workers[i].currentTask # NULL 
+    /\ Workers[i].requesterSk # NULL
+    /\ Time < Workers[i].currentTask.Pd
+
+Verify(i) == 
+    /\ Verify_IsEnabled(i)
+    /\ LET weights == CATDAlgorithm(i)
+       IN Workers' = [Workers EXCEPT ![i].weights = weights, 
+                                     ![i].state = "SEND_SUBMIT_EVAL"]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+    
+(***************************************************************************)
+(*                   SEND_SUBMIT_EVAL / RECV_SUBMIT_EVAL                   *)
+(***************************************************************************)
+SendSubmitEval_IsEnabled(i) == 
+    /\ Workers[i].state = "SEND_SUBMIT_EVAL"
+    /\ Workers[i].currentTask # NULL 
+    /\ Workers[i].weights # NULL
+    /\ Time < Workers[i].currentTask.Pd
+
+SendSubmitEval(i) == 
+    /\ SendSubmitEval_IsEnabled(i) 
+    /\ LET request == [type |-> "SUBMIT_EVAL",
+                       from |-> Workers[i].pk,
+                       task |-> Workers[i].currentTask.address,
+                    weights |-> Workers[i].weights]
+       IN /\ SendMessage(TSCs.pk, request) 
+          /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_EVAL"]
+    /\ UNCHANGED <<Requesters, USCs, Storage>> 
+
+ReceiveSubmitEval_MessageFormat(i, msg) ==
+    /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
+    /\ msg.from = TSCs.pk
+    /\ msg.type = "ACK"
+
+ReceiveSubmitEval_IsEnabled(i) == 
+    /\ Workers[i].state = "RECV_SUBMIT_EVAL" 
+    /\ Workers[i].currentTask # NULL
+    /\ \E msg \in Workers[i].msgs : ReceiveSubmitEval_MessageFormat(i, msg)
+    /\ Time < Workers[i].currentTask.Pd 
+    
+ReceiveSubmitEval(i) ==
+    /\ ReceiveSubmitEval_IsEnabled(i)
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveSubmitEval_MessageFormat(i, m)
+       IN NextTask(i, msg)
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+    
+(***************************************************************************)
 (*                     AUTOMATIC TIMEOUTS & TERMINATION                    *)
 (***************************************************************************)
 TaskTimeout_IsEnabled(i) == 
@@ -334,12 +596,14 @@ TaskTimeout_IsEnabled(i) ==
                                    "SEND_QUERY_DATA", 
                                    "RECV_QUERY_DATA",
                                    "VERIFY",
+                                   "SEND_DATA",
+                                   "RECV_DATA",
                                    "SEND_SUBMIT_EVAL",
                                    "RECV_SUBMIT_EVAL"}
     
 TaskTimeout(i) == 
     /\ TaskTimeout_IsEnabled(i) 
-    /\ LET newTasks == Workers[i].confirmedTasks \ Workers[i].currentTask 
+    /\ LET newTasks == Workers[i].confirmedTasks \ {Workers[i].currentTask}
            nextTask == IF Cardinality(newTasks) = 0 THEN NULL ELSE 
                        CHOOSE t \in newTasks : \A y \in newTasks : 
                               t.taskId # y.taskId => t.taskId < y.taskId   
@@ -363,17 +627,26 @@ Next ==
         \/ SendConfirmTask(worker) 
         \/ SendSubmitData(worker) 
         \/ SendSubmitHash(worker)
-        \/ Compute(worker)      
+        \/ SendQueryData(worker)
+        \/ SendData(worker)
+        \/ SendSubmitEval(worker)
+        \/ Compute(worker)
+        \/ Verify(worker)
+        \/ RequestData(worker)     
         \/ ReceiveRegister(worker)
         \/ ReceiveQueryTasks(worker)
         \/ ReceiveConfirmTask(worker)
         \/ ReceiveSendKey(worker)
         \/ ReceiveSubmitData(worker)
         \/ ReceiveSubmitHash(worker)
+        \/ ReceiveWeights(worker)
+        \/ ReceiveQueryData(worker)
+        \/ ReceiveData(worker)
+        \/ ReceiveSubmitEval(worker)
         \/ TaskTimeout(worker)
     \/ Terminating
         
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 18:19:02 CET 2024 by jungc
+\* Last modified Thu Feb 29 16:31:46 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

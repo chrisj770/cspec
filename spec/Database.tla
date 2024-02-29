@@ -4,7 +4,8 @@ EXTENDS Common
 TypeOK == TRUE
 
 Init == Storage = [msgs |-> {}, 
-                   data |-> {}]
+                   data |-> {},
+                     pk |-> [address |-> "STORAGE", type |-> "public_key"]]
 
 (***************************************************************************)
 (*                               SUBMIT_DATA                               *)
@@ -24,7 +25,7 @@ ReceiveSubmitData ==
                     address |-> msg.from, 
                  submission |-> msg.data]
            response == [type |-> "HASH", 
-                        from |-> "STORAGE", 
+                        from |-> Storage.pk, 
                         hash |-> hash] 
        IN /\ Storage' = [Storage EXCEPT !.data = Storage.data \union {newData},
                                         !.msgs = Storage.msgs \ {msg}]
@@ -48,7 +49,7 @@ ReceiveQueryData ==
     /\ LET msg == CHOOSE m \in Storage.msgs : ReceiveQueryData_MessageFormat(m) IN 
         /\ LET data == {d \in Storage.data : d.hash \in msg.hashes}
                response == [type |-> "DATA", 
-                            from |-> "STORAGE", 
+                            from |-> Storage.pk, 
                          allData |-> data] 
            IN IF IsWorker(msg.from)
               THEN /\ SendMessage(msg.from, response)
@@ -63,5 +64,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 17:27:20 CET 2024 by jungc
+\* Last modified Tue Feb 27 15:16:58 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc
