@@ -41,6 +41,11 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Requester.tla</locationURI>
 		</link>
 		<link>
+			<name>Requester_Properties.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/Requester_Properties.tla</locationURI>
+		</link>
+		<link>
 			<name>TSC.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/TSC.tla</locationURI>

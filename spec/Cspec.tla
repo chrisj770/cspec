@@ -13,6 +13,8 @@ Worker == INSTANCE Worker
 Blockchain == INSTANCE Blockchain
 Database == INSTANCE Database
 
+RequesterProp == INSTANCE Requester_Properties
+
 TypeOK == /\ Worker!TypeOK
           /\ Requester!TypeOK
           /\ Blockchain!TypeOK
@@ -36,10 +38,10 @@ Next == /\ \/ /\ \/ Worker!Next
 
 Spec == Init /\ [][Next]_vars
 
-(* ------------------------------------------------------- *)
-TSCMaximum == Cardinality(TSCs) <= NumRequesters * Cardinality(Tasks) 
+Properties == 
+    /\ RequesterProp!Properties
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 10:01:21 CET 2024 by jungc
+\* Last modified Thu Feb 29 18:26:45 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc

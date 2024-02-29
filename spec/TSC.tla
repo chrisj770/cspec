@@ -27,7 +27,6 @@ AddFields(struct, owner, taskId, address) ==
                           state |-> "Available",
                           owner |-> owner,
                    participants |-> {},
-                numParticipants |-> 1,
       globalReputationThreshold |-> 0,
    expertiseReputationThreshold |-> 0,
                          checkQ |-> [j \in 0..1 |-> TRUE],
@@ -352,5 +351,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 29 16:03:08 CET 2024 by jungc
+\* Last modified Thu Feb 29 16:37:24 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc
