@@ -49,7 +49,7 @@ Init ==
                  weights |-> {}]]
                  
 CATDAlgorithm(i) == 
-    {[participant |-> w, weight |-> "placeholder"] :
+    {[address |-> w, weight |-> "placeholder"] :
      w \in Requesters[i].currentTask.participants}
            
 Terminate(i, msg) == 
@@ -185,14 +185,19 @@ ReceiveQueryTasks_IsEnabled(i) ==
     
 ReceiveQueryTasks_Success(i, msg) == 
     \/ /\ Cardinality(msg.tasks) > 0
-       /\ LET firstTask == CHOOSE t \in msg.tasks : \A y \in msg.tasks : 
-                           t.taskId # y.taskId => t.taskId < y.taskId 
-          IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                              ![i].tasks = msg.tasks \ {firstTask},
-                                              ![i].unconfirmedWorkers = firstTask.participants, 
-                                              ![i].confirmedWorkers = {},
-                                              ![i].currentTask = firstTask,
-                                              ![i].state = "SEND_KEY"]
+       /\ IF \A t \in msg.tasks : t.owner = Requesters[i].pk => t.state = "Unavailable"
+          THEN LET firstTask == CHOOSE t \in msg.tasks : \A y \in msg.tasks : 
+                                t.taskId # y.taskId => t.taskId < y.taskId 
+               IN Requesters' = [Requesters EXCEPT 
+                                    ![i].msgs = Requesters[i].msgs \ {msg},
+                                    ![i].tasks = msg.tasks \ {firstTask},
+                                    ![i].unconfirmedWorkers = firstTask.participants, 
+                                    ![i].confirmedWorkers = {},
+                                    ![i].currentTask = firstTask,
+                                    ![i].state = "SEND_KEY"]
+          ELSE Requesters' = [Requesters EXCEPT 
+                                    ![i].msgs = Requesters[i].msgs \ {msg}, 
+                                    ![i].state = "SEND_QUERY_TASKS"]
     \/ /\ Cardinality(msg.tasks) = 0 
        /\ Terminate(i, msg)
      
@@ -201,9 +206,11 @@ ReceiveQueryTasks(i) ==
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryTasks_MessageFormat(i, m) 
        IN \/ /\ msg.type = "TASKS"
              /\ ReceiveQueryTasks_Success(i, msg)
-          \/ /\ msg.type # "TASKS"
+          \/ /\ msg.type = "INVALID"
              /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                                  ![i].state = "SEND_QUERY_TASKS"]
+          \/ /\ msg.type = "NOT_REGISTERED"
+             /\ Terminate(i, msg)
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
 
 (***************************************************************************)
@@ -291,9 +298,14 @@ ReceiveQueryHashes(i) ==
     /\ ReceiveQueryHashes_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryHashes_MessageFormat(i, m)
        IN \/ /\ msg.type = "HASHES"
-             /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                                 ![i].state = "SEND_QUERY_DATA", 
-                                                 ![i].submittedHashes = msg.hashes]
+             /\ IF Cardinality(msg.hashes) = Requesters[i].currentTask.numParticipants
+                THEN Requesters' = [Requesters EXCEPT 
+                                        ![i].msgs = Requesters[i].msgs \ {msg},
+                                        ![i].state = "SEND_QUERY_DATA", 
+                                        ![i].submittedHashes = msg.hashes]
+                ELSE Requesters' = [Requesters EXCEPT
+                                        ![i].msgs = Requesters[i].msgs \ {msg},
+                                        ![i].state = "SEND_QUERY_HASHES"] 
           \/ /\ msg.type = "INVALID"
              /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                                  ![i].state = "SEND_QUERY_HASHES"]
@@ -337,9 +349,9 @@ ReceiveQueryData(i) ==
     /\ ReceiveQueryData_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveQueryData_MessageFormat(i, m)
            decryptedData == {[address |-> d.address,
-                              submission |-> Decrypt(d.submission, Requesters[i].sk @@ 
-                                                     [share |-> d.submission.encryptionKey.share])]
-                             : d \in msg.allData}
+                           submission |-> Decrypt(d.submission, Requesters[i].sk @@ 
+                                                  [share |-> d.submission.encryptionKey.share])]
+                            : d \in msg.allData}
        IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
                                            ![i].submittedData = decryptedData,
                                            ![i].state = "EVALUATE"]
@@ -386,7 +398,7 @@ SendSubmitEval(i) ==
 ReceiveSubmitEval_MessageFormat(i, msg) ==
     /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
-    /\ msg.type = "ACK"
+    /\ msg.type \in {"ACK", "INVALID", "CANCELED", "COMPLETED", "NOT_REGISTERED"}
 
 ReceiveSubmitEval_IsEnabled(i) == 
     /\ Requesters[i].state = "RECV_SUBMIT_EVAL" 
@@ -398,8 +410,16 @@ ReceiveSubmitEval_IsEnabled(i) ==
 ReceiveSubmitEval(i) ==
     /\ ReceiveSubmitEval_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveSubmitEval_MessageFormat(i, m)
-       IN Requesters' = [Requesters EXCEPT ![i].state = "SEND_WEIGHTS", 
-                                           ![i].msgs = Requesters[i].msgs \ {msg}]
+       IN \/ /\ msg.type = "ACK"
+             /\ Requesters' = [Requesters EXCEPT ![i].state = "SEND_WEIGHTS", 
+                                                 ![i].msgs = Requesters[i].msgs \ {msg}]
+          \/ /\ msg.type = "INVALID"
+             /\ Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
+                                                 ![i].state = "SEND_SUBMIT_EVAL"]
+          \/ /\ msg.type \in {"CANCELED", "COMPLETED"}
+             /\ NextTask(i, msg)
+          \/ /\ msg.type = "NOT_REGISTERED"
+             /\ Terminate(i, msg)
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
 
 (***************************************************************************)
@@ -408,7 +428,7 @@ ReceiveSubmitEval(i) ==
 SendWeights_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_WEIGHTS"
     /\ Requesters[i].currentTask # NULL
-    /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
+    /\ Requesters[i].confirmedWorkers # {} 
     /\ Time < Requesters[i].currentTask.Pd
 
 SendWeights(i) == 
@@ -494,9 +514,6 @@ TaskTimeout(i) ==
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
     /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage>> 
-
-Terminated == 
-    <>(\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
             
 Next == 
     \/ \E requester \in 1..NumRequesters : 
@@ -523,5 +540,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 29 18:23:34 CET 2024 by jungc
+\* Last modified Fri Mar 01 12:06:22 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

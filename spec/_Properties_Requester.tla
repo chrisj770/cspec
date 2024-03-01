@@ -1,4 +1,4 @@
------------------------- MODULE Requester_Properties ------------------------
+----------------------- MODULE _Properties_Requester -----------------------
 EXTENDS Requester
 
 AllowedStateTransitions == {
@@ -28,7 +28,9 @@ AllowedStateTransitions == {
                "TERMINATED"}],      \* Transitions upon receiving "NOT_REGISTERED" or an empty task list
       
    [start |-> "SEND_KEY",           \* SEND_KEY: Split private key and send to next WORKER
-      end |-> {"RECV_KEY"}],        \* Transitions upon sending "SEND_KEY" message with key-share
+      end |-> {"RECV_KEY",          \* Transitions upon sending "SEND_KEY" message with key-share
+               "SEND_KEY",          \* Transitions upon task timeout with remaining tasks
+               "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "RECV_KEY",           \* RECV_KEY: Await acknowledgement of key-share from WORKER
       end |-> {"SEND_QUERY_HASHES", \* Transitions if "ACK" received and all WORKERS have received a key-share
@@ -36,15 +38,20 @@ AllowedStateTransitions == {
                "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "SEND_QUERY_HASHES",  \* SEND_QUERY_HASHES: Send message to query task hashes via TSC 
-      end |-> {"RECV_QUERY_HASHES"}], \* Transitions upon sending "QUERY_HASHES" message
+      end |-> {"RECV_QUERY_HASHES", \* Transitions upon sending "QUERY_HASHES" message
+               "SEND_KEY",          \* Transitions upon task timeout with remaining tasks
+               "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "RECV_QUERY_HASHES",  \* RECV_QUERY_HASHES: Await list of hashes from TSC
       end |-> {"SEND_QUERY_DATA",   \* Transitions upon receiving "HASHES" with hash-list (length equal to numParticipants)
+               "SEND_QUERY_HASHES", \* Transitions upon receiving "HASHES" with hash-list (length <numParticipants) or "INVALID"
                "SEND_KEY",          \* Transitions upon task timeout with remaining tasks
                "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "SEND_QUERY_DATA",    \* SEND_QUERY_DATA: Send message to retrieve data from STORAGE 
-      end |-> {"RECV_QUERY_DATA"}], \* Transitions upon sending a "QUERY_DATA" message with hashes
+      end |-> {"RECV_QUERY_DATA",   \* Transitions upon sending a "QUERY_DATA" message with hashes
+               "SEND_KEY",          \* Transitions upon task timeout with remaining tasks
+               "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "RECV_QUERY_DATA",    \* RECV_QUERY_DATA: Await encrypted data from STORAGE
       end |-> {"EVALUATE",          \* Transitions upon receiving "DATA" with encrypted data
@@ -57,7 +64,9 @@ AllowedStateTransitions == {
                "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "SEND_SUBMIT_EVAL",   \* SEND_SUBMIT_EVAL: Send message with evaluation results to TSC
-      end |-> {"RECV_SUBMIT_EVAL"}],\* Transitions upon sending "SUBMIT_EVAL" message
+      end |-> {"RECV_SUBMIT_EVAL",  \* Transitions upon sending "SUBMIT_EVAL" message
+               "SEND_KEY",          \* Transitions upon task timeout with remaining tasks
+               "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "RECV_SUBMIT_EVAL",   \* RECV_SUBMIT_EVAL: Await acknowledgement of evaluation results from TSC
       end |-> {"SEND_WEIGHTS",      \* Transitions upon receiving "ACK" from TSC
@@ -65,7 +74,9 @@ AllowedStateTransitions == {
                "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "SEND_WEIGHTS",       \* SEND_WEIGHTS: Send message with evaluation results to next WORKER
-      end |-> {"RECV_WEIGHTS"}],    \* Transitions upon sending "WEIGHTS" message
+      end |-> {"RECV_WEIGHTS",      \* Transitions upon sending "WEIGHTS" message
+               "SEND_KEY",          \* Transitions upon task timeout with remaining tasks
+               "TERMINATED"}],      \* Transitions upon task timeout with no remaining tasks
       
    [start |-> "RECV_WEIGHTS",       \* RECV_WEIGHTS: Await acknowledgement of evaluation results from WORKER
       end |-> {"SEND_WEIGHTS",      \* Transitions if "ACK" received and NOT all workers have received results
@@ -86,11 +97,14 @@ StateTransitions ==
        IN Requesters'[i].state \in (t.end \union {t.start})
       ]_Requesters
 
+Termination == 
+    <>(\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
+
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 29 18:26:39 CET 2024 by jungc
-\* Created Thu Feb 29 16:59:23 CET 2024 by jungc
+\* Last modified Fri Mar 01 10:55:37 CET 2024 by jungc
+\* Created Fri Mar 01 08:25:17 CET 2024 by jungc

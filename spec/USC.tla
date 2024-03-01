@@ -47,10 +47,10 @@ ReceiveRegister ==
                      ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = Requesters[msg.from].msgs \union {response}]
                           /\ UNCHANGED <<Workers>>
                   /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}] 
-                  /\ UNCHANGED <<NextPubkey>>
-          ELSE LET newKey == ToString(NextPubkey) 
+                  /\ UNCHANGED <<NextUnique>>
+          ELSE LET newKey == ToString(NextUnique) 
                IN /\ Register(newKey, msg)
-                  /\ NextPubkey' = NextPubkey + 1
+                  /\ NextUnique' = NextUnique + 1
                   /\ LET response == [type |-> "REGISTERED", 
                                       from |-> USCs.pk, 
                                        key |-> newKey, 
@@ -88,7 +88,7 @@ ReceiveGetReputation ==
                         task |-> msg.task]
        IN /\ SendMessage(TSCs.pk, response)
           /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}]
-    /\ UNCHANGED <<Workers, Requesters, NextPubkey>>
+    /\ UNCHANGED <<Workers, Requesters, NextUnique>>
                
 Next == 
     \/ ReceiveRegister
@@ -97,5 +97,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 17:25:52 CET 2024 by jungc
+\* Last modified Fri Mar 01 10:11:03 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

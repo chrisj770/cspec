@@ -11,7 +11,7 @@ Init ==
                pk |-> [address |-> "TSC", type |-> "public_key"],
             tasks |-> {}]  
            
-HandleBadMessage(task, msg, expectedState) == 
+HandleStateMismatch(task, msg, expectedState) == 
     IF task.state = "Canceled"
         THEN SendMessage(msg.from, [type |-> "CANCELED", from |-> TSCs.pk, task |-> task.address])
     ELSE IF task.state = "Completed"
@@ -62,11 +62,11 @@ PostTasks(tasksToAdd, addedTasks, msg) ==
     \/ /\ tasksToAdd = <<>>
        /\ TSCs' = [TSCs EXCEPT !.tasks = TSCs.tasks \union addedTasks,
                                !.msgs = TSCs.msgs \ {msg} ]
-       /\ NextPubkey' = NextPubkey + Cardinality(addedTasks)
+       /\ NextUnique' = NextUnique + Cardinality(addedTasks)
     \/ /\ Len(tasksToAdd) > 0
        /\ LET nextTask == Head(tasksToAdd) 
               nextTaskId == Cardinality(TSCs.tasks) + Cardinality(addedTasks) + 1
-              nextAddress == NextPubkey + Cardinality(addedTasks)
+              nextAddress == NextUnique + Cardinality(addedTasks)
               newTaskList == addedTasks \union {AddFields(nextTask, msg.from, nextTaskId, nextAddress)} 
           IN PostTasks(Tail(tasksToAdd), newTaskList, msg) 
 
@@ -78,7 +78,7 @@ ReceivePostTasks ==
                /\ SendMessage(msg.from, [type |-> "ACK", from |-> TSCs.pk])                                  
           ELSE /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
                /\ SendMessage(msg.from, [type |-> "INVALID", from |-> TSCs.pk])
-               /\ UNCHANGED <<NextPubkey>>
+               /\ UNCHANGED <<NextUnique>>
     /\ UNCHANGED <<Workers, USCs>>
 
 (***************************************************************************)
@@ -89,7 +89,6 @@ ReceiveQueryTasks_MessageFormat(msg) ==
     /\ msg.type = "QUERY_TASKS" 
     /\ IF IsRequester(msg.from)
        THEN /\ msg.owner # NULL
-            /\ \A t \in TSCs.tasks : t.owner = msg.owner => t.state = "Unavailable"
        ELSE IF IsWorker(msg.from) 
             THEN msg.owner = NULL
             ELSE FALSE 
@@ -120,7 +119,7 @@ ReceiveQueryTasks ==
           /\ IF IsRequester(msg.from) 
              THEN UNCHANGED <<Workers>>
              ELSE UNCHANGED <<Requesters>> 
-    /\ UNCHANGED <<USCs, NextPubkey>>           
+    /\ UNCHANGED <<USCs, NextUnique>>           
 
 (***************************************************************************)
 (*                            RECV_CONFIRM_TASK                            *)
@@ -139,11 +138,21 @@ ReceiveConfirmTask ==
     /\ ReceiveConfirmTask_IsEnabled
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveConfirmTask_MessageFormat(m) 
            tsc == CHOOSE t \in TSCs.tasks : msg.task = t.address
-       IN \* \/ /\ HandleBadMessage(tsc, msg, "Available")
-          \*   /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
-          \*   /\ UNCHANGED <<USCs>>
-          \/ /\ tsc.state = "Available"
-             /\ Cardinality(tsc.participants) < tsc.numParticipants
+           response == [from |-> TSCs.pk, task |-> tsc.address]
+       IN \/ /\ msg.from \in tsc.participants
+             /\ SendMessage(msg.from, response @@ [type |-> "CONFIRM_SUCCESS"])
+             /\ UNCHANGED <<TSCs, USCs>>
+          \/ /\ ~(msg.from \in tsc.participants)
+             /\ \/ /\ tsc.state \in {"Unavailable", "QEvaluating"}
+                   /\ SendMessage(msg.from, response @@ [type |-> "CONFIRM_FAIL"])
+                \/ /\ tsc.state = "Canceled"
+                   /\ SendMessage(msg.from, response @@ [type |-> "CANCELED"])
+                \/ /\ tsc.state = "Completed"
+                   /\ SendMessage(msg.from, response @@ [type |-> "COMPLETED"])                   
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
+             /\ UNCHANGED <<USCs>>
+          \/ /\ ~(msg.from \in tsc.participants)
+             /\ tsc.state = "Available"
              /\ LET request == [type |-> "GET_REPUTATION", 
                                 from |-> TSCs.pk, 
                                 user |-> msg.from, 
@@ -152,7 +161,7 @@ ReceiveConfirmTask ==
                    /\ TSCs' = [TSCs EXCEPT !.state = "CHECK_REPUTATION", 
                                            !.msgs = TSCs.msgs \ {msg}]
              /\ UNCHANGED <<Workers>>
-    /\ UNCHANGED <<Requesters, NextPubkey>>
+    /\ UNCHANGED <<Requesters, NextUnique>>
     
 (***************************************************************************)
 (*                            CHECK_REPUTATION                             *)
@@ -196,7 +205,7 @@ CheckReputation ==
           ELSE /\ SendMessage(msg.user, [type |-> "NOT_REGISTERED"] @@ response)
                /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg},
                                        !.state = "WORKING"]
-    /\ UNCHANGED <<Requesters, USCs, NextPubkey>>
+    /\ UNCHANGED <<Requesters, USCs, NextUnique>>
 
 (***************************************************************************)
 (*                            RECV_SUBMIT_HASH                             *)
@@ -229,8 +238,8 @@ ReceiveSubmitHash ==
     /\ ReceiveSubmitHash_IsEnabled
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveSubmitHash_MessageFormat(m)
            tsc == CHOOSE t \in TSCs.tasks : ReceiveSubmitHash_TaskFormat(t, msg)
-       IN \*\/ /\ HandleBadMessage(tsc, msg, "Unavailable")
-          \*   /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
+       IN \/ /\ HandleStateMismatch(tsc, msg, "Unavailable")
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
           \/ /\ tsc.state = "Unavailable"
              /\ \/ /\ msg.hash \in tsc.hashes
                    /\ UNCHANGED <<TSCs>>
@@ -238,18 +247,17 @@ ReceiveSubmitHash ==
              /\ SendMessage(msg.from, [type |-> "ACK", 
                                        from |-> TSCs.pk, 
                                        task |-> tsc.address])
-    /\ UNCHANGED <<Requesters, USCs, NextPubkey>>
+    /\ UNCHANGED <<Requesters, USCs, NextUnique>>
 
 (***************************************************************************)
 (*                            RECV_QUERY_HASHES                            *)
 (***************************************************************************)
 ReceiveQueryHashes_TaskFormat(t, msg) == 
-    /\ Cardinality(t.participants) = t.numParticipants
-    /\ IF IsWorker(msg.from)
-       THEN Workers[GetWorker(msg.from)].pk \in t.participants
-       ELSE IF IsRequester(msg.from)
-            THEN msg.from = t.owner
-            ELSE FALSE
+    IF IsWorker(msg.from)
+    THEN Workers[GetWorker(msg.from)].pk \in t.participants
+    ELSE IF IsRequester(msg.from)
+         THEN msg.from = t.owner
+         ELSE FALSE
 
 ReceiveQueryHashes_MessageFormat(msg) ==
     /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
@@ -266,8 +274,8 @@ ReceiveQueryHashes ==
     /\ ReceiveQueryHashes_IsEnabled
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveQueryHashes_MessageFormat(m)
            tsc == CHOOSE t \in TSCs.tasks : ReceiveQueryHashes_TaskFormat(t, msg)
-       IN /\ \* \/ /\ HandleBadMessage(tsc, msg, "QEvaluating") 
-             \*   /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
+       IN /\ \/ /\ HandleStateMismatch(tsc, msg, "QEvaluating") 
+                /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
              \/ /\ tsc.state = "QEvaluating"
                 /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
                 /\ SendMessage(msg.from, [type |-> "HASHES", 
@@ -277,7 +285,7 @@ ReceiveQueryHashes ==
           /\ IF IsWorker(msg.from) 
              THEN UNCHANGED <<Requesters>>
              ELSE UNCHANGED <<Workers>>
-    /\ UNCHANGED <<USCs, NextPubkey>>
+    /\ UNCHANGED <<USCs, NextUnique>>
 
 (***************************************************************************)
 (*                             RECV_SUBMIT_EVAL                            *)
@@ -322,8 +330,8 @@ ReceiveSubmitEval ==
     /\ ReceiveSubmitEval_IsEnabled
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveSubmitEval_MessageFormat(m)
            tsc == CHOOSE t \in TSCs.tasks : ReceiveSubmitEval_TaskFormat(t, msg)
-       IN /\ \* \/ /\ HandleBadMessage(tsc, msg, "QEvaluating") 
-             \*   /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
+       IN /\ \/ /\ HandleStateMismatch(tsc, msg, "QEvaluating") 
+                /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
              \/ /\ tsc.state = "QEvaluating"
                 /\ \/ /\ IsRequester(msg.from)
                       /\ SubmitEval(msg, tsc, "REQUESTER")
@@ -338,7 +346,7 @@ ReceiveSubmitEval ==
           /\ IF IsWorker(msg.from) 
              THEN UNCHANGED <<Requesters>>
              ELSE UNCHANGED <<Workers>>
-    /\ UNCHANGED <<USCs, NextPubkey>>
+    /\ UNCHANGED <<USCs, NextUnique>>
 
 Next == 
     \/ ReceivePostTasks
@@ -351,5 +359,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 29 16:37:24 CET 2024 by jungc
+\* Last modified Fri Mar 01 11:30:12 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

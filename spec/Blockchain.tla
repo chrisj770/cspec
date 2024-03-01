@@ -15,7 +15,6 @@ TypeOK ==
 Init == 
     /\ TSC!Init
     /\ USC!Init
-    /\ NextPubkey = 1
     
 Next == 
     \/ TSC!Next
@@ -23,5 +22,5 @@ Next ==
    
 =============================================================================
 \* Modification History
-\* Last modified Mon Feb 26 10:03:35 CET 2024 by jungc
+\* Last modified Fri Mar 01 10:11:28 CET 2024 by jungc
 \* Created Fri Feb 23 15:36:50 CET 2024 by jungc

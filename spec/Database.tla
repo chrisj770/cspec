@@ -1,5 +1,5 @@
 ------------------------------ MODULE Database ------------------------------
-EXTENDS Common 
+EXTENDS Common, TLC
 
 TypeOK == TRUE
 
@@ -20,16 +20,16 @@ ReceiveSubmitData_IsEnabled ==
 ReceiveSubmitData == 
     /\ ReceiveSubmitData_IsEnabled
     /\ LET msg == CHOOSE m \in Storage.msgs : ReceiveSubmitData_MessageFormat(m)
-           hash == "Somehash"
-           newData == [hash |-> hash, 
+           newData == [hash |-> ToString(NextUnique), 
                     address |-> msg.from, 
                  submission |-> msg.data]
            response == [type |-> "HASH", 
                         from |-> Storage.pk, 
-                        hash |-> hash] 
+                        hash |-> ToString(NextUnique)] 
        IN /\ Storage' = [Storage EXCEPT !.data = Storage.data \union {newData},
                                         !.msgs = Storage.msgs \ {msg}]
           /\ SendMessage(msg.from, response)
+          /\ NextUnique' = NextUnique + 1
     /\ UNCHANGED <<Requesters>>
 
 (***************************************************************************)
@@ -56,7 +56,8 @@ ReceiveQueryData ==
                    /\ UNCHANGED <<Requesters>> 
               ELSE /\ SendMessage(msg.from, response)
                    /\ UNCHANGED <<Workers>>
-        /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \ {msg}]                                              
+        /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \ {msg}]      
+    /\ UNCHANGED <<NextUnique>>                                        
 
 Next == 
     \/ ReceiveSubmitData
@@ -64,5 +65,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Feb 27 15:16:58 CET 2024 by jungc
+\* Last modified Fri Mar 01 10:14:31 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc

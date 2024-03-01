@@ -21,14 +21,12 @@ TypeOK ==
          "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
          "SEND_QUERY_DATA",     \* Receive list of sensory data from STORAGE
          "VERIFY",              \* Run verification process
-         "SEND_DATA", 
+         "REQUEST_DATA", 
          "RECV_DATA",
          "SEND_SUBMIT_EVAL",    \* Attempt to submit evaluation results to TSC  
          "RECV_SUBMIT_EVAL",    \* Receive Acknowledgement for evaluation results from TSC
          "TERMINATED"}]         
-         
-StateConsistency == TRUE
-         
+                  
 Init ==
     Workers = [w \in 1..NumWorkers |-> [
                   msgs |-> {},              \* Message queue 
@@ -193,8 +191,8 @@ SendConfirmTask(i) ==
 ReceiveConfirmTask_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
-    /\ msg.type \in {"INVALID", "CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS", "NOT_REGISTERED"}
-    /\ msg.type \in {"INVALID", "CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS"} \equiv "task" \in DOMAIN msg
+    /\ msg.type \in {"CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS", "NOT_REGISTERED"}
+    /\ msg.type \in {"CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS"} \equiv "task" \in DOMAIN msg
 
 ReceiveConfirmTask_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_CONFIRM_TASK"
@@ -229,7 +227,7 @@ ReceiveConfirmTask_Failed(i, msg, task) ==
                    ![i].state = IF finished THEN
                                     IF Cardinality(Workers[i].confirmedTasks) > 0
                                     THEN "RECV_SEND_KEY"
-                                    ELSE "SEND_QUERY_TASK"
+                                    ELSE "SEND_QUERY_TASKS"
                                 ELSE "SEND_CONFIRM_TASK"]
                                 
 ReceiveConfirmTask(i) == 
@@ -388,8 +386,8 @@ ReceiveWeights_IsEnabled(i) ==
 ReceiveWeights(i) == 
     /\ ReceiveWeights_IsEnabled(i) 
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveWeights_MessageFormat(i, m)
-           otherParticipants == {w.participant : w \in {weight \in msg.weights : 
-                                 weight.participant # Workers[i].pk}}
+           otherParticipants == {w.address : w \in {weight \in msg.weights : 
+                                 weight.address # Workers[i].pk}}
            response == [type |-> "ACK", 
                         from |-> Workers[i].pk,
                         task |-> Workers[i].currentTask.address] 
@@ -438,7 +436,7 @@ ReceiveQueryData(i) ==
        IN Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
                                      ![i].submittedData = decryptedData,
                                      ![i].state = IF Cardinality(Workers[i].participantsSent) > 0 
-                                                  THEN "SEND_DATA"
+                                                  THEN "REQUEST_DATA"
                                                   ELSE "VERIFY"]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
@@ -446,7 +444,7 @@ ReceiveQueryData(i) ==
 (*                 REQUEST_DATA / RECEIVE_DATA/ SEND_DATA                  *)
 (***************************************************************************)
 RequestData_IsEnabled(i) == 
-    /\ Workers[i].state = "SEND_DATA"
+    /\ Workers[i].state = "REQUEST_DATA"
     /\ Workers[i].currentTask # NULL 
     /\ Workers[i].submittedData # {}
     /\ Workers[i].participantsSent # {}
@@ -455,11 +453,12 @@ RequestData_IsEnabled(i) ==
 RequestData(i) == 
     /\ RequestData_IsEnabled(i)
     /\ LET nextWorkerPk == CHOOSE r \in Workers[i].participantsSent : TRUE
+           wIndex == CHOOSE index \in 1..NumWorkers : Workers[index].pk = nextWorkerPk
            request == [type |-> "GET_DATA",
                        from |-> Workers[i].pk,
                        task |-> Workers[i].currentTask.address]
-       IN /\ SendMessage(nextWorkerPk, request)
-          /\ Workers' = [Workers EXCEPT ![i].state = "RECV_DATA"]
+       IN Workers' = [Workers EXCEPT ![i].state = "RECV_DATA", 
+                                     ![wIndex].msgs = Workers[wIndex].msgs \union {request}]                  
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
 
 ReceiveData_MessageFormat(i, msg) == 
@@ -477,18 +476,18 @@ ReceiveData_IsEnabled(i) ==
 ReceiveData(i) == 
     /\ ReceiveData_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveData_MessageFormat(i, m) 
-           worker == CHOOSE w \in Workers[i].otherParticipants : w = msg.from
+           worker == CHOOSE w \in Workers[i].participantsSent : w = msg.from
        IN Workers' = [Workers EXCEPT 
                 ![i].msgs = Workers[i].msgs \ {msg}, 
                 ![i].participantsSent = Workers[i].participantsSent \ {worker},
                 ![i].submittedData = Workers[i].submittedData \union {msg.data}, 
                 ![i].state = IF Cardinality(Workers[i].participantsSent) = 1 
                              THEN IF /\ Cardinality(Workers[i].participantsRcvd) = 0 
-                                     /\ Cardinality(Workers[i].submittedData) = 
+                                     /\ Cardinality(Workers[i].submittedData) + 1 = 
                                         Workers[i].currentTask.numParticipants 
                                   THEN "VERIFY"
                                   ELSE "RECV_DATA"
-                             ELSE "SEND_DATA"]
+                             ELSE "REQUEST_DATA"]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>  
     
 SendData_MessageFormat(i, msg) == 
@@ -498,30 +497,31 @@ SendData_MessageFormat(i, msg) ==
     /\ msg.task = Workers[i].currentTask.address
     
 SendData_IsEnabled(i) == 
-    /\ Workers[i].state \in {"SEND_DATA", "RECV_DATA"} 
+    /\ Workers[i].state \in {"REQUEST_DATA", "RECV_DATA"} 
     /\ Workers[i].currentTask # NULL 
     /\ \E msg \in Workers[i].msgs : SendData_MessageFormat(i, msg)
     /\ Time < Workers[i].currentTask.Pd
     
 SendData(i) == 
     /\ SendData_IsEnabled(i) 
-    /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveData_MessageFormat(i, m) 
-           worker == CHOOSE w \in Workers[i].otherParticipants : w = msg.from
+    /\ LET msg == CHOOSE m \in Workers[i].msgs : SendData_MessageFormat(i, m) 
+           worker == CHOOSE w \in Workers[i].participantsRcvd : w = msg.from
+           wIndex == CHOOSE index \in 1..NumWorkers : Workers[index].pk = worker
            response == [type |-> "DATA", 
                         from |-> Workers[i].pk, 
                         data |-> CHOOSE w \in Workers[i].submittedData : 
-                                 w.participant = Workers[i].pk,
+                                 w.address = Workers[i].pk,
                         task |-> Workers[i].currentTask.address]
-       IN /\ SendMessage(msg.from, response)
-          /\ Workers' = [Workers EXCEPT 
+       IN /\ Workers' = [Workers EXCEPT 
                     ![i].msgs = Workers[i].msgs \ {msg}, 
                     ![i].participantsRcvd = Workers[i].participantsRcvd \ {worker}, 
                     ![i].state = IF /\ Cardinality(Workers[i].participantsRcvd) = 1
                                     /\ Cardinality(Workers[i].participantsSent) = 0
-                                    /\ Cardinality(Workers[i].submittedData) = 
+                                    /\ Cardinality(Workers[i].submittedData)= 
                                        Workers[i].currentTask.numParticipants
                                  THEN "VERIFY"
-                                 ELSE Workers[i].state]
+                                 ELSE Workers[i].state,
+                    ![wIndex].msgs = Workers[wIndex].msgs \union {response}]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
        
     
@@ -596,7 +596,7 @@ TaskTimeout_IsEnabled(i) ==
                                    "SEND_QUERY_DATA", 
                                    "RECV_QUERY_DATA",
                                    "VERIFY",
-                                   "SEND_DATA",
+                                   "REQUEST_DATA",
                                    "RECV_DATA",
                                    "SEND_SUBMIT_EVAL",
                                    "RECV_SUBMIT_EVAL"}
@@ -617,8 +617,6 @@ TaskTimeout(i) ==
     
 Terminating == /\ \A w \in 1..NumWorkers: Workers[w].state = "TERMINATED"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage>> 
-
-Terminated == <>(\A w \in 1..NumWorkers: Workers[w].state = "TERMINATED")
         
 Next == 
     \/ \E worker \in 1..NumWorkers : 
@@ -648,5 +646,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 29 16:31:46 CET 2024 by jungc
+\* Last modified Fri Mar 01 12:18:14 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

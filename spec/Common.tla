@@ -13,7 +13,7 @@ VARIABLES
     USCs,
     TSCs, 
     Time, 
-    NextPubkey, 
+    NextUnique, 
     Storage
     
 IsWorker(public_key) == 
@@ -103,5 +103,5 @@ Decrypt(data, decryptionKey) ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Feb 29 16:33:49 CET 2024 by jungc
+\* Last modified Fri Mar 01 10:11:16 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc
