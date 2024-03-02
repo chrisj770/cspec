@@ -5,8 +5,7 @@ CONSTANTS
     Tasks, 
     TaskPostDeadline, 
     TaskQueryDeadline,
-    RegistrationDeadline, 
-    MaxTime
+    RegistrationDeadline
 
 ASSUME /\ RegistrationDeadline < TaskPostDeadline
        /\ TaskPostDeadline < TaskQueryDeadline
@@ -20,9 +19,10 @@ Database == INSTANCE Database
 
 RequesterProperties == INSTANCE _Properties_Requester
 WorkerProperties == INSTANCE _Properties_Worker
+TSCProperties == INSTANCE _Properties_TSC
 
-TypeOK == /\ Worker!TypeOK
-          /\ Requester!TypeOK
+TypeOK == /\ WorkerProperties!TypeOK
+          /\ RequesterProperties!TypeOK
           /\ Blockchain!TypeOK
           /\ Database!TypeOK
     
@@ -35,6 +35,13 @@ Init == /\ Worker!Init
         
 IncrementTimer == 
     Time' = IF Time < MaxTime THEN Time + 1 ELSE Time
+    
+Terminated == 
+    /\ \A i \in 1..NumWorkers : Workers[i].state = "TERMINATED"
+    /\ \A j \in 1..NumRequesters : Requesters[j].state = "TERMINATED"
+    /\ TSCs.state = "TERMINATED" 
+    /\ USCs.state = "TERMINATED"
+    /\ Storage.state = "TERMINATED"
         
 Next == /\ \/ /\ \/ Worker!Next
                  \/ Requester!Next
@@ -50,8 +57,9 @@ Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 Properties == 
     /\ RequesterProperties!Properties
     /\ WorkerProperties!Properties
+    /\ TSCProperties!Properties
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 15:53:26 CET 2024 by jungc
+\* Last modified Sat Mar 02 14:49:04 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc

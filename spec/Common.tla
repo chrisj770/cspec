@@ -5,7 +5,8 @@ CONSTANTS
     NumWorkers,
     NumRequesters,
     NumUSCs,
-    NULL
+    NULL, 
+    MaxTime
     
 VARIABLES
     Workers,
@@ -103,5 +104,5 @@ Decrypt(data, decryptionKey) ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 10:11:16 CET 2024 by jungc
+\* Last modified Sat Mar 02 11:49:39 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

@@ -2,32 +2,6 @@
 EXTENDS FiniteSets, Sequences, Common, TLC, Integers
     
 CONSTANT TaskQueryDeadline    
-
-TypeOK == 
-    /\ \A worker \in Workers : [Workers.state -> 
-        {"INIT",                \* Initialize local variables
-         "SEND_REGISTER",       \* Attempt to register as a WORKER via USSC
-         "RECV_REGISTER",       \* Receive acknowledgement and public/private key from USSC 
-         "SEND_QUERY_TASKS",    \* Request list of active tasks via TSC
-         "RECV_QUERY_TASKS",    \* Receive list of active tasks from TSC, or INVALID
-         "SEND_CONFIRM_TASK",   \* Attempt to enlist as a confirmed WORKER for each selected TSC
-         "RECV_SEND_KEY",       \* Await key-share from REQUESTER for single task
-         "COMPUTE",             \* Generate sensory data
-         "SEND_SUBMIT_DATA",    \* Attempt to submit encrypted sensory data to STORAGE
-         "RECV_SUBMIT_DATA",    \* Receive acknowledgement for sensory data from STORAGE
-         "SEND_SUBMIT_HASH",    \* Attempt to submit hash of sensory data to TSC
-         "RECV_SUBMIT_HASH",    \* Receive acknowledgement for hash from TSC 
-         "RECV_WEIGHTS",        \* Await weight broadcast from REQUESTER
-         "SEND_QUERY_HASHES",   \* Request list of all hashes from TSC
-         "RECV_QUERY_HASHES",   \* Receive list of all hashes from TSC
-         "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
-         "SEND_QUERY_DATA",     \* Receive list of sensory data from STORAGE
-         "VERIFY",              \* Run verification process
-         "REQUEST_DATA", 
-         "RECV_DATA",
-         "SEND_SUBMIT_EVAL",    \* Attempt to submit evaluation results to TSC  
-         "RECV_SUBMIT_EVAL",    \* Receive Acknowledgement for evaluation results from TSC
-         "TERMINATED"}]         
                   
 Init ==
     Workers = [w \in 1..NumWorkers |-> [
@@ -630,37 +604,44 @@ TaskTimeout(i) ==
            ![i].currentHash = NULL]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
+GlobalTimeout == 
+    /\ Time >= MaxTime
+    /\ Workers' = [w \in 1..NumWorkers |-> [Workers[w] EXCEPT !.state = "TERMINATED"]]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+    
 Terminating == /\ \A w \in 1..NumWorkers: Workers[w].state = "TERMINATED"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage>> 
         
 Next == 
-    \/ \E worker \in 1..NumWorkers : 
-        \/ SendRegister(worker)
-        \/ SendQueryTasks(worker)
-        \/ SendConfirmTask(worker) 
-        \/ SendSubmitData(worker) 
-        \/ SendSubmitHash(worker)
-        \/ SendQueryData(worker)
-        \/ SendData(worker)
-        \/ SendSubmitEval(worker)
-        \/ Compute(worker)
-        \/ Verify(worker)
-        \/ RequestData(worker)     
-        \/ ReceiveRegister(worker)
-        \/ ReceiveQueryTasks(worker)
-        \/ ReceiveConfirmTask(worker)
-        \/ ReceiveSendKey(worker)
-        \/ ReceiveSubmitData(worker)
-        \/ ReceiveSubmitHash(worker)
-        \/ ReceiveWeights(worker)
-        \/ ReceiveQueryData(worker)
-        \/ ReceiveData(worker)
-        \/ ReceiveSubmitEval(worker)
-        \/ EarlyTermination(worker)
-        \/ TaskTimeout(worker)
+    \/ /\ Time < MaxTime
+       /\ \E worker \in 1..NumWorkers : 
+           \/ SendRegister(worker)
+           \/ SendQueryTasks(worker)
+           \/ SendConfirmTask(worker) 
+           \/ SendSubmitData(worker) 
+           \/ SendSubmitHash(worker)
+           \/ SendQueryData(worker)
+           \/ SendData(worker)
+           \/ SendSubmitEval(worker)
+           \/ Compute(worker)
+           \/ Verify(worker)
+           \/ RequestData(worker)     
+           \/ ReceiveRegister(worker)
+           \/ ReceiveQueryTasks(worker)
+           \/ ReceiveConfirmTask(worker)
+           \/ ReceiveSendKey(worker)
+           \/ ReceiveSubmitData(worker)
+           \/ ReceiveSubmitHash(worker)
+           \/ ReceiveWeights(worker)
+           \/ ReceiveQueryData(worker)
+           \/ ReceiveData(worker)
+           \/ ReceiveSubmitEval(worker)
+           \/ EarlyTermination(worker)
+           \/ TaskTimeout(worker)
+    \/ GlobalTimeout
     \/ Terminating
         
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 15:07:54 CET 2024 by jungc
+\* Last modified Sat Mar 02 14:48:33 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

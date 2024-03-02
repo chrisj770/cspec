@@ -9,28 +9,6 @@ RequiredTaskFields == {
     "Pd",               \* Proving deadline (time, in steps)
     "Td",               \* Task deadline (time, in steps)
     "numParticipants"}  \* Required number of participants
-        
-TypeOK == 
-    /\ \A requester \in Requesters : [requester.state ->
-        {"INIT",                \* Initialize local variables
-         "SEND_REGISTER",       \* Attempt to register as a REQUESTER via USSC
-         "RECV_REGISTER",       \* Receive acknowledgement and public/private key from USSC
-         "SEND_POST_TASKS",     \* Attempt to post a list of tasks via TSSC
-         "RECV_POST_TASKS",     \* Receive acknowledgement for task post from TSSC
-         "SEND_QUERY_TASKS",    \* Request a list of active tasks via TSC
-         "RECV_QUERY_TASKS",    \* Receive a list of active tasks from TSC, or INVALID
-         "SEND_KEY",            \* Attempt to send key-share to WORKER for single task
-         "RECV_KEY",            \* Receive acknowledgement for key-share from WORKER 
-         "SEND_QUERY_HASHES",   \* Request list of all hashes from TSC
-         "RECV_QUERY_HASHES",   \* Receive list of all hashes from TSC
-         "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
-         "RECV_QUERY_DATA",     \* Receive all relevant sensory data from STORAGE
-         "EVALUATE",            \* Run evaluation process
-         "SEND_SUBMIT_EVAL",    \* Attempt to submit results of evaluation via TSC
-         "RECV_SUBMIT_EVAL",    \* Receive acknowledgement for evaluation results from TSC
-         "SEND_WEIGHTS",        \* Attempt to send weights received from evaluation
-         "RECV_WEIGHTS",        \* Receive acknowledgement of weights from WORKER
-         "TERMINATED"}]  
 
 Init == 
     Requesters = [r \in 1..NumRequesters |-> [
@@ -514,34 +492,41 @@ TaskTimeout(i) ==
     /\ NextTask(i, NULL)
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
+GlobalTimeout == 
+    /\ Time >= MaxTime
+    /\ Requesters' = [r \in 1..NumRequesters |-> [Requesters[r] EXCEPT !.state = "TERMINATED"]]
+    /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
+    
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
     /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage>> 
             
 Next == 
-    \/ \E requester \in 1..NumRequesters : 
-        \/ SendRegister(requester)
-        \/ SendPostTasks(requester)
-        \/ SendQueryTasks(requester)
-        \/ SendKey(requester)
-        \/ SendQueryHashes(requester)
-        \/ SendQueryData(requester)
-        \/ SendSubmitEval(requester)
-        \/ Evaluate(requester)
-        \/ SendWeights(requester)
-        \/ ReceiveRegister(requester)        
-        \/ ReceivePostTasks(requester)
-        \/ ReceiveQueryTasks(requester)
-        \/ ReceiveKey(requester)
-        \/ ReceiveQueryHashes(requester)
-        \/ ReceiveQueryData(requester)
-        \/ ReceiveSubmitEval(requester)
-        \/ ReceiveWeights(requester)
-        \/ EarlyTermination(requester)
-        \/ TaskTimeout(requester)
+    \/ /\ Time < MaxTime
+       /\ \E requester \in 1..NumRequesters : 
+           \/ SendRegister(requester)
+           \/ SendPostTasks(requester)
+           \/ SendQueryTasks(requester)
+           \/ SendKey(requester)
+           \/ SendQueryHashes(requester)
+           \/ SendQueryData(requester)
+           \/ SendSubmitEval(requester)
+           \/ Evaluate(requester)
+           \/ SendWeights(requester)
+           \/ ReceiveRegister(requester)        
+           \/ ReceivePostTasks(requester)
+           \/ ReceiveQueryTasks(requester)
+           \/ ReceiveKey(requester)
+           \/ ReceiveQueryHashes(requester)
+           \/ ReceiveQueryData(requester)
+           \/ ReceiveSubmitEval(requester)
+           \/ ReceiveWeights(requester)
+           \/ EarlyTermination(requester)
+           \/ TaskTimeout(requester)
+    \/ GlobalTimeout
     \/ Terminating
     
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 16:05:43 CET 2024 by jungc
+\* Last modified Sat Mar 02 14:48:11 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

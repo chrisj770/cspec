@@ -8,7 +8,8 @@ TypeOK == TRUE
 Init == 
     USCs = [msgs |-> {},
               pk |-> [address |-> "USC", type |-> "public_key"],
-           users |-> {}]
+           users |-> {},
+           state |-> "WORKING"]
 
 (***************************************************************************)
 (*                                REGISTER                                 *)
@@ -89,13 +90,31 @@ ReceiveGetReputation ==
        IN /\ SendMessage(TSCs.pk, response)
           /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}]
     /\ UNCHANGED <<Workers, Requesters, NextUnique>>
+    
+EarlyTermination == 
+    /\ Time >= RegistrationDeadline
+    /\ USCs.users = {}
+    /\ USCs' = [USCs EXCEPT !.state = "TERMINATED"]
+    /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
+    
+GlobalTimeout == 
+    /\ Time >= MaxTime
+    /\ USCs' = [USCs EXCEPT !.state = "TERMINATED"]
+    /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
+    
+Terminating == /\ USCs.state = "TERMINATED"
+               /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
                
 Next == 
-    \/ ReceiveRegister
-    \/ ReceiveGetReputation
+    \/ /\ Time < MaxTime
+       /\ \/ ReceiveRegister
+          \/ ReceiveGetReputation
+          \/ EarlyTermination
+    \/ GlobalTimeout
+    \/ Terminating
 
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 10:11:03 CET 2024 by jungc
+\* Last modified Sat Mar 02 12:20:20 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc
