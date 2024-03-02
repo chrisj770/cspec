@@ -6,19 +6,21 @@ AllowedStateTransitions == {
       end |-> {"SEND_REGISTER"}],   \* Transitions upon completing initialization 
       
    [start |-> "SEND_REGISTER",      \* SEND_REGISTER: Attempt to register with USC
-      end |-> {"RECV_REGISTER"}],   \* Transitions upon sending "REGISTER" message
+      end |-> {"RECV_REGISTER",     \* Transitions upon sending "REGISTER" message
+               "TERMINATED"}],      \* Transitions upon TaskQueryDeadline elapsing
       
    [start |-> "RECV_REGISTER",      \* RECV_REGISTER: Await registration information from USC
       end |-> {"SEND_QUERY_TASKS",  \* Transitions upon receiving "REGISTERED" with key-share info
                "TERMINATED"}],      \* Transitions upon receiving "NOT_REGISTERED"
       
    [start |-> "SEND_QUERY_TASKS",   \* SEND_QUERY_TASKS: Send message to query tasks via TSC
-      end |-> {"RECV_QUERY_TASKS"}],\* Transitions upon sending "QUERY_TASKS" message 
-      
+      end |-> {"RECV_QUERY_TASKS",  \* Transitions upon sending "QUERY_TASKS" message 
+               "TERMINATED"}],      \* Transitions upon TaskQueryDeadline elapsing
+        
    [start |-> "RECV_QUERY_TASKS",   \* RECV_QUERY_TASKS: Await updated task information from TSC
       end |-> {"SEND_QUERY_TASKS",  \* Transitions upon receiving "INVALID"
                "SEND_CONFIRM_TASK", \* Transitions upon receiving "TASKS" with non-empty task list, 1+ w/ state "Available"
-               "TERMINATED"}],      \* Transitions upon receiving "NOT_REGISTERED" or "TASKS" with empty task list
+               "TERMINATED"}],      \* Transitions upon receiving "NOT_REGISTERED" or "TASKS" with empty task list, or TaskQueryDeadline elapsing
       
    [start |-> "SEND_CONFIRM_TASK",  \* SEND_CONFIRM_TASK: Send message confirm a specific task via TSC
       end |-> {"RECV_CONFIRM_TASK"}],\* Transitions upon sending "CONFIRM_TASK" message 
@@ -120,9 +122,10 @@ Termination ==
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
+    /\ Termination
 
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 11:11:23 CET 2024 by jungc
+\* Last modified Fri Mar 01 15:10:28 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

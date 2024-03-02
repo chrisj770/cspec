@@ -4,7 +4,12 @@ EXTENDS FiniteSets, Common
 CONSTANTS
     Tasks, 
     TaskPostDeadline, 
-    RegistrationDeadline
+    TaskQueryDeadline,
+    RegistrationDeadline, 
+    MaxTime
+
+ASSUME /\ RegistrationDeadline < TaskPostDeadline
+       /\ TaskPostDeadline < TaskQueryDeadline
     
 vars == <<Workers, Requesters, USCs, TSCs, Time, NextUnique, Storage>>
 
@@ -28,6 +33,9 @@ Init == /\ Worker!Init
         /\ Time = 0
         /\ NextUnique = 1
         
+IncrementTimer == 
+    Time' = IF Time < MaxTime THEN Time + 1 ELSE Time
+        
 Next == /\ \/ /\ \/ Worker!Next
                  \/ Requester!Next
               /\ UNCHANGED <<NextUnique>>
@@ -35,9 +43,9 @@ Next == /\ \/ /\ \/ Worker!Next
               /\ UNCHANGED <<Storage>>
            \/ /\ Database!Next
               /\ UNCHANGED <<TSCs, USCs>>
-        /\ Time' = Time + 1
+        /\ IncrementTimer
 
-Spec == Init /\ [][Next]_vars
+Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
 Properties == 
     /\ RequesterProperties!Properties
@@ -45,5 +53,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 10:11:57 CET 2024 by jungc
+\* Last modified Fri Mar 01 15:53:26 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc

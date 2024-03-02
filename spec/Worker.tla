@@ -1,6 +1,8 @@
 ------------------------------- MODULE Worker -------------------------------
 EXTENDS FiniteSets, Sequences, Common, TLC, Integers
     
+CONSTANT TaskQueryDeadline    
+
 TypeOK == 
     /\ \A worker \in Workers : [Workers.state -> 
         {"INIT",                \* Initialize local variables
@@ -580,6 +582,19 @@ ReceiveSubmitEval(i) ==
 (***************************************************************************)
 (*                     AUTOMATIC TIMEOUTS & TERMINATION                    *)
 (***************************************************************************)
+EarlyTermination_IsEnabled(i) == 
+    /\ Time >= TaskQueryDeadline
+    /\ Workers[i].state \in {"INIT", 
+                             "SEND_REGISTER", 
+                             "RECV_REGISTER",
+                             "SEND_QUERY_TASKS", 
+                             "RECV_QUERY_TASKS"}
+                             
+EarlyTermination(i) == 
+    /\ EarlyTermination_IsEnabled(i) 
+    /\ Terminate(i, NULL)
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+
 TaskTimeout_IsEnabled(i) == 
     /\ Workers[i].currentTask # NULL
     /\ \/ /\ Time >= Workers[i].currentTask.Sd          \* Case 1: Submission not complete before Submission deadline
@@ -641,10 +656,11 @@ Next ==
         \/ ReceiveQueryData(worker)
         \/ ReceiveData(worker)
         \/ ReceiveSubmitEval(worker)
+        \/ EarlyTermination(worker)
         \/ TaskTimeout(worker)
     \/ Terminating
         
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 12:18:14 CET 2024 by jungc
+\* Last modified Fri Mar 01 15:07:54 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

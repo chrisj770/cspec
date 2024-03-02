@@ -103,8 +103,9 @@ Termination ==
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
+    /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 10:55:37 CET 2024 by jungc
+\* Last modified Fri Mar 01 15:08:00 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

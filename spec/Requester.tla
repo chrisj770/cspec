@@ -84,6 +84,12 @@ NextTask(i, msg) ==
            ![i].submittedHashes  = {},
            ![i].submittedData = {}, 
            ![i].weights = {}]
+           
+GetLastTaskDeadline(r) ==
+    LET lastTask == CHOOSE i \in 1..Len(r.unpostedTasks) : 
+                           \A y \in 1..Len(r.unpostedTasks) :
+                           i # y => r.unpostedTasks[i].Td >= r.unpostedTasks[y].Td
+    IN r.unpostedTasks[lastTask].Td
 
 (***************************************************************************)
 (*                     SEND_REGISTER / RECV_REGISTER                       *)
@@ -151,8 +157,7 @@ ReceivePostTasks(i) ==
     /\ ReceivePostTasks_IsEnabled(i)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceivePostTasks_MessageFormat(i, m) 
        IN \/ /\ msg.type = "ACK"
-             /\ Requesters' = [Requesters EXCEPT ![i].unpostedTasks = <<>>,
-                                                 ![i].state = "SEND_QUERY_TASKS",
+             /\ Requesters' = [Requesters EXCEPT ![i].state = "SEND_QUERY_TASKS",
                                                  ![i].msgs = Requesters[i].msgs \ {msg}]
           \/ /\ msg.type # "ACK"
              /\ Terminate(i, msg)
@@ -185,17 +190,21 @@ ReceiveQueryTasks_IsEnabled(i) ==
     
 ReceiveQueryTasks_Success(i, msg) == 
     \/ /\ Cardinality(msg.tasks) > 0
-       /\ IF \A t \in msg.tasks : t.owner = Requesters[i].pk => t.state = "Unavailable"
-          THEN LET firstTask == CHOOSE t \in msg.tasks : \A y \in msg.tasks : 
-                                t.taskId # y.taskId => t.taskId < y.taskId 
-               IN Requesters' = [Requesters EXCEPT 
+       /\ \/ /\ \A t \in msg.tasks : t.owner = Requesters[i].pk => t.state = "Unavailable"
+             /\ LET firstTask == CHOOSE t \in msg.tasks : \A y \in msg.tasks : 
+                                 t.taskId # y.taskId => t.taskId < y.taskId 
+                IN Requesters' = [Requesters EXCEPT 
                                     ![i].msgs = Requesters[i].msgs \ {msg},
                                     ![i].tasks = msg.tasks \ {firstTask},
                                     ![i].unconfirmedWorkers = firstTask.participants, 
                                     ![i].confirmedWorkers = {},
+                                    ![i].unpostedTasks = <<>>,
                                     ![i].currentTask = firstTask,
                                     ![i].state = "SEND_KEY"]
-          ELSE Requesters' = [Requesters EXCEPT 
+          \/ /\ \A t \in msg.tasks : t.owner = Requesters[i].pk => t.state \in {"Canceled", "Completed"}
+             /\ Terminate(i, msg)
+          \/ /\ \E t \in msg.tasks : t.owner = Requesters[i].pk => t.state \in {"Available", "QEvaluating"}
+             /\ Requesters' = [Requesters EXCEPT 
                                     ![i].msgs = Requesters[i].msgs \ {msg}, 
                                     ![i].state = "SEND_QUERY_TASKS"]
     \/ /\ Cardinality(msg.tasks) = 0 
@@ -469,13 +478,7 @@ ReceiveWeights(i) ==
     
 (***************************************************************************)
 (*                     AUTOMATIC TIMEOUTS & TERMINATION                    *)
-(***************************************************************************)
-GetLastTaskDeadline(r) ==
-    LET lastTask == CHOOSE i \in 1..Len(r.unpostedTasks) : 
-                           \A y \in 1..Len(r.unpostedTasks) :
-                           i # y => r.unpostedTasks[i].Td >= r.unpostedTasks[y].Td
-    IN r.unpostedTasks[lastTask].Td
-    
+(***************************************************************************)    
 EarlyTermination_IsEnabled(i) == 
     \/ /\ Requesters[i].state = "SEND_REGISTER"      \* Case 1: No tasks to submit prior to registration     
        /\ Len(Requesters[i].unpostedTasks) = 0 
@@ -540,5 +543,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 12:06:22 CET 2024 by jungc
+\* Last modified Fri Mar 01 16:05:43 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc
