@@ -1,25 +1,26 @@
 ----------------------------- MODULE Blockchain -----------------------------
-EXTENDS TSSC, TSC, USSC, USC
+EXTENDS Common
+
+CONSTANTS 
+    TaskPostDeadline, 
+    RegistrationDeadline
+    
+TSC == INSTANCE TSC
+USC == INSTANCE USC
 
 TypeOK == 
-    /\ TSSCTypeOK
-    /\ TSCTypeOK
-    /\ USSCTypeOK
-    /\ USCTypeOK
+    /\ TSC!TypeOK
+    /\ USC!TypeOK
 
 Init == 
-    /\ TSSCInit
-    /\ TSCInit
-    /\ USSCInit
-    /\ USCInit
+    /\ TSC!Init
+    /\ USC!Init
     
 Next == 
-    \/ /\ TSCNext
-       /\ UNCHANGED <<NextPubkey>>
-    \/ TSSCNext
-    \/ USSCNext
-
+    \/ TSC!Next
+    \/ USC!Next
+   
 =============================================================================
 \* Modification History
-\* Last modified Sat Feb 24 10:45:29 CET 2024 by jungc
+\* Last modified Fri Mar 01 10:11:28 CET 2024 by jungc
 \* Created Fri Feb 23 15:36:50 CET 2024 by jungc
