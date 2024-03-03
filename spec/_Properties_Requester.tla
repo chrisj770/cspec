@@ -95,25 +95,66 @@ TypeOK ==
         /\ Requesters[r].state \in {s.start : s \in AllowedStateTransitions}
 
 StateConsistency == 
-    [](\A i \in 1..NumRequesters: 
+    [][\A i \in 1..NumRequesters: 
         Requesters[i].state \in 
-        {t.start : t \in AllowedStateTransitions})
+        {t.start : t \in AllowedStateTransitions}
+    ]_Requesters
         
 StateTransitions == 
     [][\A i \in 1..NumRequesters:
        LET t == CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state 
        IN Requesters'[i].state \in (t.end \union {t.start})
-      ]_Requesters
+    ]_Requesters
+      
+TerminatesIfNotRegistered == 
+    [][\A i \in 1..NumRequesters:
+       IF \E msg \in Requesters[i].msgs : msg.type = "NOT_REGISTERED" 
+       THEN LET msg == CHOOSE m \in Requesters[i].msgs : m.type = "NOT_REGISTERED"
+            IN IF msg \notin Requesters[i]'.msgs
+               THEN Requesters[i]'.state = "TERMINATED"
+               ELSE TRUE
+       ELSE TRUE
+    ]_Requesters
+    
+ProducesMessagesToProgress == 
+    [][\A i \in 1..NumRequesters:
+       IF /\ Requesters[i].state \in 
+                {"SEND_REGISTER", "SEND_POST_TASKS", "SEND_QUERY_TASKS", 
+                 "SEND_KEY", "SEND_QUERY_HASHES", "SEND_QUERY_DATA", 
+                 "SEND_SUBMIT_EVAL", "SEND_WEIGHTS"}
+          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state)
+             IN Requesters[i]'.state \in (match.end \ ({"TERMINATED", match.start}))
+       THEN \/ \E j \in 1..NumWorkers : Cardinality(Workers[j]'.msgs) = Cardinality(Workers[j].msgs) + 1
+            \/ Cardinality(TSCs'.msgs) = Cardinality(TSCs.msgs) + 1
+            \/ Cardinality(USCs'.msgs) = Cardinality(USCs.msgs) + 1
+            \/ Cardinality(Storage'.msgs) = Cardinality(Storage.msgs) + 1
+       ELSE TRUE
+    ]_Requesters
+    
+ConsumesMessagesToProgress == 
+    [][\A i \in 1..NumRequesters:
+       IF /\ Requesters[i].state \in
+                {"RECV_REGISTER",  "RECV_POST_TASKS","RECV_QUERY_TASKS", 
+                 "RECV_KEY", "RECV_QUERY_HASHES", "RECV_QUERY_DATA",
+                 "RECV_SUBMIT_EVAL", "RECV_WEIGHTS"}
+          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state)
+             IN Requesters[i]'.state \in (match.end \ ({"TERMINATED", match.start}))
+       THEN Cardinality(Requesters[i]'.msgs) = Cardinality(Requesters[i].msgs) - 1
+       ELSE TRUE
+    ]_Requesters
 
 Termination == 
-    <>(\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
+    <>[](\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
 
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
+    /\ TerminatesIfNotRegistered
+    /\ ProducesMessagesToProgress
+    /\ ConsumesMessagesToProgress
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 14:48:20 CET 2024 by jungc
+\* Last modified Sun Mar 03 10:37:57 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

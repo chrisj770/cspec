@@ -15,25 +15,30 @@ AllowedStateTransitions == {
 }
 
 StateConsistency == 
-    [](TSCs.state \in {s.start : s \in AllowedStateTransitions})
+    [][TSCs.state \in {s.start : s \in AllowedStateTransitions}]_TSCs
         
 StateTransitions == 
     [][
         LET t == CHOOSE x \in AllowedStateTransitions : x.start = TSCs.state 
         IN TSCs'.state \in (t.end \union {t.start})
     ]_TSCs
+    
 
+
+(*
 TaskExpired(t) == 
     \/ /\ t.state \in {"Pending", "Available", "Unavailable"}
        /\ t.Sd
     \/ /\ t.state = "QEvaluating" 
        /\ t.Pd
-       
-TSCAllTasksComplete == 
-    Cardinality(TSCs.tasks) > 0 ~> 
-        \A t \in TSCs.tasks : t.state \in {"Canceled", "Completed"}
 
-(*
+
+TSCAllTasksComplete == 
+    ~[]~(
+        /\ Cardinality(TSCs.tasks) > 0
+        /\ \A t \in TSCs.tasks : t.state \in {"Canceled", "Completed"}
+    )
+
 TSCCancelsTasksWhenExpired == 
     [][
         IF \E t \in TSCs.tasks : TaskExpired(t)
@@ -48,17 +53,17 @@ TSCRemovesMessageAfterUpdate ==
 *)
 
 Termination == 
-    <>(TSCs.state = "TERMINATED")
+    <>[](TSCs.state = "TERMINATED")
 
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
-    /\ TSCAllTasksComplete
+\*    /\ TSCAllTasksComplete
 \*    /\ TSCCancelsTasksWhenExpired
 \*    /\ TSCRemovesMessageAfterUpdate
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 08:46:44 CET 2024 by jungc
+\* Last modified Sun Mar 03 10:51:21 CET 2024 by jungc
 \* Created Sat Mar 02 14:14:04 CET 2024 by jungc

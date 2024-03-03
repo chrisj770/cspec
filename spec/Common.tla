@@ -4,7 +4,6 @@ EXTENDS Sequences, Integers
 CONSTANTS 
     NumWorkers,
     NumRequesters,
-    NumUSCs,
     NULL, 
     MaxTime
     
@@ -102,7 +101,10 @@ Decrypt(data, decryptionKey) ==
           ELSE TRUE
     THEN data.encryptedData ELSE NULL 
 
+IsEncrypted(data) == 
+    \A f \in {"encryptedData", "encryptionKey"} : f \in DOMAIN data
+
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 11:49:39 CET 2024 by jungc
+\* Last modified Sun Mar 03 10:45:30 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

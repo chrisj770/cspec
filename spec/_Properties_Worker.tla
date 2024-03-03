@@ -126,26 +126,83 @@ TypeOK ==
         /\ Workers[w].state \in {s.start : s \in AllowedStateTransitions}
       
 StateConsistency == 
-    [](\A i \in 1..NumWorkers: 
+    [][\A i \in 1..NumWorkers: 
         Workers[i].state \in 
-        {t.start : t \in AllowedStateTransitions})
-        
+        {t.start : t \in AllowedStateTransitions}
+    ]_Workers
+    
 StateTransitions == 
     [][\A i \in 1..NumWorkers:
        LET t == CHOOSE x \in AllowedStateTransitions : x.start = Workers[i].state 
        IN Workers'[i].state \in (t.end \union {t.start})
-      ]_Workers
-      
+    ]_Workers
+
+TerminatesIfNotRegistered == 
+    [][\A i \in 1..NumWorkers:
+       IF \E msg \in Workers[i].msgs : msg.type = "NOT_REGISTERED" 
+       THEN LET msg == CHOOSE m \in Workers[i].msgs : m.type = "NOT_REGISTERED"
+            IN IF msg \notin Workers[i]'.msgs
+               THEN Workers[i]'.state = "TERMINATED"
+               ELSE TRUE
+       ELSE TRUE
+    ]_Workers
+
+SendsMessagesToUSC == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].state = "SEND_REGISTER"
+          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = "SEND_REGISTER")
+             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
+       THEN Cardinality(USCs'.msgs) = Cardinality(USCs.msgs) + 1
+       ELSE TRUE
+    ]_Workers
+    
+SendsMessagesToTSC == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].state \in 
+                {"SEND_QUERY_TASKS", "SEND_CONFIRM_TASK", "SEND_SUBMIT_HASH", "SEND_SUBMIT_EVAL"}
+          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Workers[i].state)
+             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
+       THEN Cardinality(TSCs'.msgs) = Cardinality(TSCs.msgs) + 1
+       ELSE TRUE
+    ]_Workers
+
+SendsMessagesToStorage == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].state \in {"SEND_QUERY_DATA", "SEND_SUBMIT_DATA"}
+          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Workers[i].state)
+             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
+       THEN /\ Cardinality(Storage'.msgs) = Cardinality(Storage.msgs) + 1
+            /\ LET msg == CHOOSE m \in Storage'.msgs : m.from = Workers[i].pk
+               IN \/ msg.type = "QUERY_DATA" 
+                  \/ /\ msg.type = "SUBMIT_DATA" 
+                     /\ IsEncrypted(msg.data)
+       ELSE TRUE
+    ]_Workers
+    
+SendsMessagesToWorkers == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].state = "REQUEST_DATA"
+          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = "REQUEST_DATA")
+             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
+       THEN \E j \in 1..NumWorkers : Cardinality(Workers[j]'.msgs) = Cardinality(Workers[j].msgs) + 1
+       ELSE TRUE
+    ]_Workers
+    
 Termination == 
-    <>(\A w \in 1..NumWorkers: Workers[w].state = "TERMINATED")
+    <>[](\A w \in 1..NumWorkers: Workers[w].state = "TERMINATED")
 
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
+    /\ TerminatesIfNotRegistered
+    /\ SendsMessagesToUSC
+    /\ SendsMessagesToTSC
+    /\ SendsMessagesToStorage
+    /\ SendsMessagesToWorkers
     /\ Termination
 
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 18:19:42 CET 2024 by jungc
+\* Last modified Sun Mar 03 11:02:52 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

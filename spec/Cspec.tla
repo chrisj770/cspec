@@ -61,9 +61,9 @@ TriggerNextTaskDeadline ==
     /\ TSCs.tasks # {}
     /\ LET task == CHOOSE t \in TSCs.tasks : TRUE
            taskId == task.taskId
-           Sd == IF ~task.Sd THEN TRUE ELSE FALSE
-           Pd == IF task.Sd /\ ~task.Pd THEN TRUE ELSE FALSE
-           Td == IF task.Sd /\ task.Pd /\ ~task.Td THEN TRUE ELSE FALSE
+           Sd == TRUE
+           Pd == task.Sd
+           Td == task.Pd
        IN /\ TSCs' = [TSCs EXCEPT !.tasks = {UpdateTask(t, taskId, Sd, Pd, Td) : t \in TSCs.tasks}]
           /\ Requesters' = [i \in 1..NumRequesters |-> [Requesters[i] EXCEPT
                 !.tasks = {UpdateTask(t, taskId, Sd, Pd, Td) : t \in Requesters[i].tasks},
@@ -109,5 +109,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 18:28:11 CET 2024 by jungc
+\* Last modified Sun Mar 03 10:21:05 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc
