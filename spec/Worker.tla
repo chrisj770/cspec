@@ -1,34 +1,6 @@
 ------------------------------- MODULE Worker -------------------------------
 EXTENDS FiniteSets, Sequences, Common, TLC, Integers
-    
-CONSTANT TaskQueryDeadline    
-
-TypeOK == 
-    /\ \A worker \in Workers : [Workers.state -> 
-        {"INIT",                \* Initialize local variables
-         "SEND_REGISTER",       \* Attempt to register as a WORKER via USSC
-         "RECV_REGISTER",       \* Receive acknowledgement and public/private key from USSC 
-         "SEND_QUERY_TASKS",    \* Request list of active tasks via TSC
-         "RECV_QUERY_TASKS",    \* Receive list of active tasks from TSC, or INVALID
-         "SEND_CONFIRM_TASK",   \* Attempt to enlist as a confirmed WORKER for each selected TSC
-         "RECV_SEND_KEY",       \* Await key-share from REQUESTER for single task
-         "COMPUTE",             \* Generate sensory data
-         "SEND_SUBMIT_DATA",    \* Attempt to submit encrypted sensory data to STORAGE
-         "RECV_SUBMIT_DATA",    \* Receive acknowledgement for sensory data from STORAGE
-         "SEND_SUBMIT_HASH",    \* Attempt to submit hash of sensory data to TSC
-         "RECV_SUBMIT_HASH",    \* Receive acknowledgement for hash from TSC 
-         "RECV_WEIGHTS",        \* Await weight broadcast from REQUESTER
-         "SEND_QUERY_HASHES",   \* Request list of all hashes from TSC
-         "RECV_QUERY_HASHES",   \* Receive list of all hashes from TSC
-         "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
-         "SEND_QUERY_DATA",     \* Receive list of sensory data from STORAGE
-         "VERIFY",              \* Run verification process
-         "REQUEST_DATA", 
-         "RECV_DATA",
-         "SEND_SUBMIT_EVAL",    \* Attempt to submit evaluation results to TSC  
-         "RECV_SUBMIT_EVAL",    \* Receive Acknowledgement for evaluation results from TSC
-         "TERMINATED"}]         
-                  
+                      
 Init ==
     Workers = [w \in 1..NumWorkers |-> [
                   msgs |-> {},              \* Message queue 
@@ -45,7 +17,9 @@ Init ==
       participantsSent |-> {},              \* Set of other workers for sending cyphertext
       participantsRcvd |-> {},              \* Set of other workers for receiving cyphertexts
          submittedData |-> {},              \* Set of data submitted by all workers (obtained from other workers during "VERIFY")
-               weights |-> {}]] 
+               weights |-> {}, 
+     TaskQueryDeadline |-> FALSE]] 
+
 
 CATDAlgorithm(i) == 
     {[participant |-> w.address, weight |-> "placeholder"] :
@@ -95,6 +69,7 @@ NextTask(i, msg) ==
 (***************************************************************************)
 SendRegister_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_REGISTER"
+    /\ ~Workers[i].TaskQueryDeadline
 
 SendRegister(i) == 
     /\ SendRegister_IsEnabled(i)
@@ -113,6 +88,7 @@ ReceiveRegister_MessageFormat(i, msg) ==
 
 ReceiveRegister_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_REGISTER"
+    /\ ~Workers[i].TaskQueryDeadline
     /\ \E msg \in Workers[i].msgs : ReceiveRegister_MessageFormat(i, msg)
 
 ReceiveRegister(i) == 
@@ -133,6 +109,7 @@ ReceiveRegister(i) ==
 (***************************************************************************)
 SendQueryTasks_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_QUERY_TASKS"
+    /\ ~Workers[i].TaskQueryDeadline
 
 SendQueryTasks(i) == 
     /\ SendQueryTasks_IsEnabled(i)
@@ -151,6 +128,7 @@ ReceiveQueryTasks_MessageFormat(i, msg) ==
 
 ReceiveQueryTasks_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_QUERY_TASKS"
+    /\ ~Workers[i].TaskQueryDeadline
     /\ \E msg \in Workers[i].msgs : ReceiveQueryTasks_MessageFormat(i, msg)
     
 ReceiveQueryTasks_Success(i, msg) == 
@@ -258,7 +236,7 @@ ReceiveSendKey_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_SEND_KEY"
     /\ Workers[i].requesterSk = NULL
     /\ Workers[i].currentTask # NULL
-    /\ Time < Workers[i].currentTask.Sd
+    /\ ~Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSendKey_MessageFormat(i, msg) 
 
 ReceiveSendKey(i) == 
@@ -281,7 +259,7 @@ Compute_IsEnabled(i) ==
     /\ Workers[i].state = "COMPUTE"
     /\ Workers[i].requesterSk # NULL 
     /\ Workers[i].currentTask # NULL
-    /\ Time < Workers[i].currentTask.Sd
+    /\ ~Workers[i].currentTask.Sd
     
 Compute(i) == 
     /\ Compute_IsEnabled(i) 
@@ -295,7 +273,7 @@ SendSubmitData_IsEnabled(i) ==
     /\ Workers[i].state = "SEND_SUBMIT_DATA" 
     /\ Workers[i].requesterSk # NULL
     /\ Workers[i].currentTask # NULL
-    /\ Time < Workers[i].currentTask.Sd
+    /\ ~Workers[i].currentTask.Sd
 
 SendSubmitData(i) == 
     /\ SendSubmitData_IsEnabled(i) 
@@ -318,7 +296,7 @@ ReceiveSubmitData_IsEnabled(i) ==
     /\ Workers[i].requesterSk # NULL 
     /\ Workers[i].currentHash = NULL
     /\ Workers[i].currentTask # NULL
-    /\ Time < Workers[i].currentTask.Sd
+    /\ ~Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSubmitData_MessageFormat(i, msg)
 
 ReceiveSubmitData(i) == 
@@ -337,7 +315,7 @@ SendSubmitHash_IsEnabled(i) ==
     /\ Workers[i].requesterSk # NULL
     /\ Workers[i].currentHash # NULL
     /\ Workers[i].currentTask # NULL
-    /\ Time < Workers[i].currentTask.Sd
+    /\ ~Workers[i].currentTask.Sd
 
 SendSubmitHash(i) ==
     /\ SendSubmitHash_IsEnabled(i)
@@ -359,7 +337,7 @@ ReceiveSubmitHash_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_SUBMIT_HASH" 
     /\ Workers[i].requesterSk # NULL
     /\ Workers[i].currentTask # NULL
-    /\ Time < Workers[i].currentTask.Sd
+    /\ ~Workers[i].currentTask.Sd
     /\ \E msg \in Workers[i].msgs : ReceiveSubmitHash_MessageFormat(i, msg)
 
 ReceiveSubmitHash(i) == 
@@ -382,7 +360,7 @@ ReceiveWeights_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_WEIGHTS"
     /\ Workers[i].currentTask # NULL 
     /\ Workers[i].requesterSk # NULL
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
     /\ \E msg \in Workers[i].msgs : ReceiveWeights_MessageFormat(i, msg) 
     
 ReceiveWeights(i) == 
@@ -407,7 +385,7 @@ ReceiveWeights(i) ==
 SendQueryData_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_QUERY_DATA"
     /\ Workers[i].currentTask # NULL
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
 
 SendQueryData(i) == 
     /\ SendQueryData_IsEnabled(i)
@@ -427,7 +405,7 @@ ReceiveQueryData_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_QUERY_DATA"
     /\ Workers[i].currentTask # NULL
     /\ \E msg \in Workers[i].msgs : ReceiveQueryData_MessageFormat(i, msg)
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
 
 ReceiveQueryData(i) == 
     /\ ReceiveQueryData_IsEnabled(i)
@@ -450,7 +428,7 @@ RequestData_IsEnabled(i) ==
     /\ Workers[i].currentTask # NULL 
     /\ Workers[i].submittedData # {}
     /\ Workers[i].participantsSent # {}
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
     
 RequestData(i) == 
     /\ RequestData_IsEnabled(i)
@@ -473,7 +451,7 @@ ReceiveData_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_DATA"
     /\ Workers[i].currentTask # NULL 
     /\ \E msg \in Workers[i].msgs : ReceiveData_MessageFormat(i, msg)
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
 
 ReceiveData(i) == 
     /\ ReceiveData_IsEnabled(i)
@@ -502,7 +480,7 @@ SendData_IsEnabled(i) ==
     /\ Workers[i].state \in {"REQUEST_DATA", "RECV_DATA"} 
     /\ Workers[i].currentTask # NULL 
     /\ \E msg \in Workers[i].msgs : SendData_MessageFormat(i, msg)
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
     
 SendData(i) == 
     /\ SendData_IsEnabled(i) 
@@ -534,7 +512,7 @@ Verify_IsEnabled(i) ==
     /\ Workers[i].state = "VERIFY"
     /\ Workers[i].currentTask # NULL 
     /\ Workers[i].requesterSk # NULL
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
 
 Verify(i) == 
     /\ Verify_IsEnabled(i)
@@ -550,7 +528,7 @@ SendSubmitEval_IsEnabled(i) ==
     /\ Workers[i].state = "SEND_SUBMIT_EVAL"
     /\ Workers[i].currentTask # NULL 
     /\ Workers[i].weights # NULL
-    /\ Time < Workers[i].currentTask.Pd
+    /\ ~Workers[i].currentTask.Pd
 
 SendSubmitEval(i) == 
     /\ SendSubmitEval_IsEnabled(i) 
@@ -571,7 +549,7 @@ ReceiveSubmitEval_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_SUBMIT_EVAL" 
     /\ Workers[i].currentTask # NULL
     /\ \E msg \in Workers[i].msgs : ReceiveSubmitEval_MessageFormat(i, msg)
-    /\ Time < Workers[i].currentTask.Pd 
+    /\ ~Workers[i].currentTask.Pd 
     
 ReceiveSubmitEval(i) ==
     /\ ReceiveSubmitEval_IsEnabled(i)
@@ -583,7 +561,7 @@ ReceiveSubmitEval(i) ==
 (*                     AUTOMATIC TIMEOUTS & TERMINATION                    *)
 (***************************************************************************)
 EarlyTermination_IsEnabled(i) == 
-    /\ Time >= TaskQueryDeadline
+    /\ Workers[i].TaskQueryDeadline
     /\ Workers[i].state \in {"INIT", 
                              "SEND_REGISTER", 
                              "RECV_REGISTER",
@@ -597,14 +575,14 @@ EarlyTermination(i) ==
 
 TaskTimeout_IsEnabled(i) == 
     /\ Workers[i].currentTask # NULL
-    /\ \/ /\ Time >= Workers[i].currentTask.Sd          \* Case 1: Submission not complete before Submission deadline
+    /\ \/ /\ Workers[i].currentTask.Sd                  \* Case 1: Submission not complete before Submission deadline
           /\ Workers[i].state \in {"RECV_SEND_KEY", 
                                    "COMPUTE",
                                    "SEND_SUBMIT_DATA", 
                                    "RECV_SUBMIT_DATA", 
                                    "SEND_SUBMIT_HASH", 
                                    "RECV_SUBMIT_HASH"}  
-       \/ /\ Time >= Workers[i].currentTask.Pd          \* Case 2: Evaluation not complete before Proving deadline
+       \/ /\ Workers[i].currentTask.Pd                 \* Case 2: Evaluation not complete before Proving deadline
           /\ Workers[i].state \in {"RECV_WEIGHTS",
                                    "SEND_QUERY_HASHES", 
                                    "RECV_QUERY_HASHES",
@@ -630,37 +608,44 @@ TaskTimeout(i) ==
            ![i].currentHash = NULL]
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
+GlobalTimeout == 
+    /\ Time >= MaxTime
+    /\ Workers' = [w \in 1..NumWorkers |-> [Workers[w] EXCEPT !.state = "TERMINATED"]]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
+    
 Terminating == /\ \A w \in 1..NumWorkers: Workers[w].state = "TERMINATED"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage>> 
         
 Next == 
-    \/ \E worker \in 1..NumWorkers : 
-        \/ SendRegister(worker)
-        \/ SendQueryTasks(worker)
-        \/ SendConfirmTask(worker) 
-        \/ SendSubmitData(worker) 
-        \/ SendSubmitHash(worker)
-        \/ SendQueryData(worker)
-        \/ SendData(worker)
-        \/ SendSubmitEval(worker)
-        \/ Compute(worker)
-        \/ Verify(worker)
-        \/ RequestData(worker)     
-        \/ ReceiveRegister(worker)
-        \/ ReceiveQueryTasks(worker)
-        \/ ReceiveConfirmTask(worker)
-        \/ ReceiveSendKey(worker)
-        \/ ReceiveSubmitData(worker)
-        \/ ReceiveSubmitHash(worker)
-        \/ ReceiveWeights(worker)
-        \/ ReceiveQueryData(worker)
-        \/ ReceiveData(worker)
-        \/ ReceiveSubmitEval(worker)
-        \/ EarlyTermination(worker)
-        \/ TaskTimeout(worker)
+    \/ /\ Time < MaxTime
+       /\ \E worker \in 1..NumWorkers : 
+           \/ SendRegister(worker)
+           \/ SendQueryTasks(worker)
+           \/ SendConfirmTask(worker) 
+           \/ SendSubmitData(worker) 
+           \/ SendSubmitHash(worker)
+           \/ SendQueryData(worker)
+           \/ SendData(worker)
+           \/ SendSubmitEval(worker)
+           \/ Compute(worker)
+           \/ Verify(worker)
+           \/ RequestData(worker)     
+           \/ ReceiveRegister(worker)
+           \/ ReceiveQueryTasks(worker)
+           \/ ReceiveConfirmTask(worker)
+           \/ ReceiveSendKey(worker)
+           \/ ReceiveSubmitData(worker)
+           \/ ReceiveSubmitHash(worker)
+           \/ ReceiveWeights(worker)
+           \/ ReceiveQueryData(worker)
+           \/ ReceiveData(worker)
+           \/ ReceiveSubmitEval(worker)
+           \/ EarlyTermination(worker)
+           \/ TaskTimeout(worker)
+    \/ GlobalTimeout
     \/ Terminating
         
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 15:07:54 CET 2024 by jungc
+\* Last modified Sat Mar 02 18:28:01 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

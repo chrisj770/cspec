@@ -9,28 +9,6 @@ RequiredTaskFields == {
     "Pd",               \* Proving deadline (time, in steps)
     "Td",               \* Task deadline (time, in steps)
     "numParticipants"}  \* Required number of participants
-        
-TypeOK == 
-    /\ \A requester \in Requesters : [requester.state ->
-        {"INIT",                \* Initialize local variables
-         "SEND_REGISTER",       \* Attempt to register as a REQUESTER via USSC
-         "RECV_REGISTER",       \* Receive acknowledgement and public/private key from USSC
-         "SEND_POST_TASKS",     \* Attempt to post a list of tasks via TSSC
-         "RECV_POST_TASKS",     \* Receive acknowledgement for task post from TSSC
-         "SEND_QUERY_TASKS",    \* Request a list of active tasks via TSC
-         "RECV_QUERY_TASKS",    \* Receive a list of active tasks from TSC, or INVALID
-         "SEND_KEY",            \* Attempt to send key-share to WORKER for single task
-         "RECV_KEY",            \* Receive acknowledgement for key-share from WORKER 
-         "SEND_QUERY_HASHES",   \* Request list of all hashes from TSC
-         "RECV_QUERY_HASHES",   \* Receive list of all hashes from TSC
-         "SEND_QUERY_DATA",     \* Request all relevant sensory data from STORAGE
-         "RECV_QUERY_DATA",     \* Receive all relevant sensory data from STORAGE
-         "EVALUATE",            \* Run evaluation process
-         "SEND_SUBMIT_EVAL",    \* Attempt to submit results of evaluation via TSC
-         "RECV_SUBMIT_EVAL",    \* Receive acknowledgement for evaluation results from TSC
-         "SEND_WEIGHTS",        \* Attempt to send weights received from evaluation
-         "RECV_WEIGHTS",        \* Receive acknowledgement of weights from WORKER
-         "TERMINATED"}]  
 
 Init == 
     Requesters = [r \in 1..NumRequesters |-> [
@@ -84,12 +62,6 @@ NextTask(i, msg) ==
            ![i].submittedHashes  = {},
            ![i].submittedData = {}, 
            ![i].weights = {}]
-           
-GetLastTaskDeadline(r) ==
-    LET lastTask == CHOOSE i \in 1..Len(r.unpostedTasks) : 
-                           \A y \in 1..Len(r.unpostedTasks) :
-                           i # y => r.unpostedTasks[i].Td >= r.unpostedTasks[y].Td
-    IN r.unpostedTasks[lastTask].Td
 
 (***************************************************************************)
 (*                     SEND_REGISTER / RECV_REGISTER                       *)
@@ -229,7 +201,7 @@ SendKey_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_KEY"
     /\ Requesters[i].currentTask # NULL
     /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
-    /\ Time < Requesters[i].currentTask.Sd
+    /\ ~Requesters[i].currentTask.Sd
 
 SendKey(i) ==
     /\ SendKey_IsEnabled(i)
@@ -256,7 +228,7 @@ ReceiveKey_IsEnabled(i) ==
     /\ Requesters[i].currentTask # NULL    
     /\ Cardinality(Requesters[i].unconfirmedWorkers) > 0
     /\ \E msg \in Requesters[i].msgs : ReceiveKey_MessageFormat(i, msg)
-    /\ Time < Requesters[i].currentTask.Sd
+    /\ ~Requesters[i].currentTask.Sd
     
 ReceiveKey(i) == 
     /\ ReceiveKey_IsEnabled(i)
@@ -278,7 +250,7 @@ SendQueryHashes_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_QUERY_HASHES"
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
 
 SendQueryHashes(i) == 
     /\ SendQueryHashes_IsEnabled(i)
@@ -301,7 +273,7 @@ ReceiveQueryHashes_IsEnabled(i) ==
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.numParticipants = Cardinality(Requesters[i].confirmedWorkers)
     /\ \E msg \in Requesters[i].msgs : ReceiveQueryHashes_MessageFormat(i, msg)
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
 
 ReceiveQueryHashes(i) == 
     /\ ReceiveQueryHashes_IsEnabled(i)
@@ -331,7 +303,7 @@ SendQueryData_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_QUERY_DATA"
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
 
 SendQueryData(i) == 
     /\ SendQueryData_IsEnabled(i)
@@ -352,7 +324,7 @@ ReceiveQueryData_IsEnabled(i) ==
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
     /\ \E msg \in Requesters[i].msgs : ReceiveQueryData_MessageFormat(i, msg)
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
 
 ReceiveQueryData(i) == 
     /\ ReceiveQueryData_IsEnabled(i)
@@ -374,7 +346,7 @@ Evaluate_IsEnabled(i) ==
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
     /\ Cardinality(Requesters[i].submittedData) = Requesters[i].currentTask.numParticipants
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
  
 Evaluate(i) ==
     /\ Evaluate_IsEnabled(i) 
@@ -392,7 +364,7 @@ SendSubmitEval_IsEnabled(i) ==
     /\ Requesters[i].weights # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
     /\ Cardinality(Requesters[i].submittedData) = Requesters[i].currentTask.numParticipants
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
 
 SendSubmitEval(i) == 
     /\ SendSubmitEval_IsEnabled(i) 
@@ -414,7 +386,7 @@ ReceiveSubmitEval_IsEnabled(i) ==
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].currentTask.participants = Requesters[i].confirmedWorkers
     /\ \E msg \in Requesters[i].msgs : ReceiveSubmitEval_MessageFormat(i, msg)
-    /\ Time < Requesters[i].currentTask.Pd 
+    /\ ~Requesters[i].currentTask.Pd 
     
 ReceiveSubmitEval(i) ==
     /\ ReceiveSubmitEval_IsEnabled(i)
@@ -438,7 +410,7 @@ SendWeights_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_WEIGHTS"
     /\ Requesters[i].currentTask # NULL
     /\ Requesters[i].confirmedWorkers # {} 
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
 
 SendWeights(i) == 
     /\ SendWeights_IsEnabled(i)
@@ -462,7 +434,7 @@ ReceiveWeights_IsEnabled(i) ==
     /\ Requesters[i].currentTask # NULL 
     /\ Requesters[i].confirmedWorkers # {} 
     /\ \E msg \in Requesters[i].msgs : ReceiveWeights_MessageFormat(i, msg)
-    /\ Time < Requesters[i].currentTask.Pd
+    /\ ~Requesters[i].currentTask.Pd
     
 ReceiveWeights(i) == 
     /\ ReceiveWeights_IsEnabled(i)
@@ -479,11 +451,15 @@ ReceiveWeights(i) ==
 (***************************************************************************)
 (*                     AUTOMATIC TIMEOUTS & TERMINATION                    *)
 (***************************************************************************)    
+IsPastFinalTaskDeadline(i) == 
+    \A j \in 1..Len(Requesters[i].unpostedTasks) : 
+        Requesters[i].unpostedTasks[j].Td = TRUE   
+    
 EarlyTermination_IsEnabled(i) == 
     \/ /\ Requesters[i].state = "SEND_REGISTER"      \* Case 1: No tasks to submit prior to registration     
        /\ Len(Requesters[i].unpostedTasks) = 0 
     \/ /\ Len(Requesters[i].unpostedTasks) > 0
-       /\ Time >= GetLastTaskDeadline(Requesters[i]) \* Case 2: Registration/Post not finished before final Task deadline
+       /\ IsPastFinalTaskDeadline(i)                 \* Case 2: Registration/Post not finished before final Task deadline
        /\ Requesters[i].state \in {"RECV_REGISTER",
                                    "RECV_POST_TASKS", 
                                    "RECV_QUERY_TASKS"}
@@ -495,10 +471,10 @@ EarlyTermination(i) ==
         
 TaskTimeout_IsEnabled(i) == 
     /\ Requesters[i].currentTask # NULL
-    /\ \/ /\ Time >= Requesters[i].currentTask.Sd   \* Case 1: Keys not sent/ACKed before Submission deadline
+    /\ \/ /\ Requesters[i].currentTask.Sd           \* Case 1: Keys not sent/ACKed before Submission deadline
           /\ Requesters[i].state \in {"SEND_KEY", 
                                       "RECV_KEY"}  
-       \/ /\ Time >= Requesters[i].currentTask.Pd   \* Case 2: Evaluation not complete before Proving deadline
+       \/ /\ Requesters[i].currentTask.Pd           \* Case 2: Evaluation not complete before Proving deadline
           /\ Requesters[i].state \in {"SEND_QUERY_HASHES",  
                                       "RECV_QUERY_HASHES",
                                       "SEND_QUERY_DATA",
@@ -514,34 +490,41 @@ TaskTimeout(i) ==
     /\ NextTask(i, NULL)
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
+GlobalTimeout == 
+    /\ Time >= MaxTime
+    /\ Requesters' = [r \in 1..NumRequesters |-> [Requesters[r] EXCEPT !.state = "TERMINATED"]]
+    /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
+    
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
     /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage>> 
             
 Next == 
-    \/ \E requester \in 1..NumRequesters : 
-        \/ SendRegister(requester)
-        \/ SendPostTasks(requester)
-        \/ SendQueryTasks(requester)
-        \/ SendKey(requester)
-        \/ SendQueryHashes(requester)
-        \/ SendQueryData(requester)
-        \/ SendSubmitEval(requester)
-        \/ Evaluate(requester)
-        \/ SendWeights(requester)
-        \/ ReceiveRegister(requester)        
-        \/ ReceivePostTasks(requester)
-        \/ ReceiveQueryTasks(requester)
-        \/ ReceiveKey(requester)
-        \/ ReceiveQueryHashes(requester)
-        \/ ReceiveQueryData(requester)
-        \/ ReceiveSubmitEval(requester)
-        \/ ReceiveWeights(requester)
-        \/ EarlyTermination(requester)
-        \/ TaskTimeout(requester)
+    \/ /\ Time < MaxTime
+       /\ \E requester \in 1..NumRequesters : 
+           \/ SendRegister(requester)
+           \/ SendPostTasks(requester)
+           \/ SendQueryTasks(requester)
+           \/ SendKey(requester)
+           \/ SendQueryHashes(requester)
+           \/ SendQueryData(requester)
+           \/ SendSubmitEval(requester)
+           \/ Evaluate(requester)
+           \/ SendWeights(requester)
+           \/ ReceiveRegister(requester)        
+           \/ ReceivePostTasks(requester)
+           \/ ReceiveQueryTasks(requester)
+           \/ ReceiveKey(requester)
+           \/ ReceiveQueryHashes(requester)
+           \/ ReceiveQueryData(requester)
+           \/ ReceiveSubmitEval(requester)
+           \/ ReceiveWeights(requester)
+           \/ EarlyTermination(requester)
+           \/ TaskTimeout(requester)
+    \/ GlobalTimeout
     \/ Terminating
     
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 16:05:43 CET 2024 by jungc
+\* Last modified Sat Mar 02 17:36:29 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

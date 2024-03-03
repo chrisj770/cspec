@@ -56,9 +56,19 @@
 			<locationURI>PARENT-1-PROJECT_LOC/Worker.tla</locationURI>
 		</link>
 		<link>
+			<name>_Properties.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/_Properties.tla</locationURI>
+		</link>
+		<link>
 			<name>_Properties_Requester.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/_Properties_Requester.tla</locationURI>
+		</link>
+		<link>
+			<name>_Properties_TSC.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/_Properties_TSC.tla</locationURI>
 		</link>
 		<link>
 			<name>_Properties_Worker.tla</name>

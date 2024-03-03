@@ -5,7 +5,8 @@ TypeOK == TRUE
 
 Init == Storage = [msgs |-> {}, 
                    data |-> {},
-                     pk |-> [address |-> "STORAGE", type |-> "public_key"]]
+                     pk |-> [address |-> "STORAGE", type |-> "public_key"], 
+                  state |-> "WORKING"]
 
 (***************************************************************************)
 (*                               SUBMIT_DATA                               *)
@@ -59,11 +60,22 @@ ReceiveQueryData ==
         /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \ {msg}]      
     /\ UNCHANGED <<NextUnique>>                                        
 
+GlobalTimeout == 
+    /\ Time >= MaxTime
+    /\ Storage' = [Storage EXCEPT !.state = "TERMINATED"]
+    /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, NextUnique>>
+    
+Terminating == /\ Storage.state = "TERMINATED"
+               /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
+
 Next == 
-    \/ ReceiveSubmitData
-    \/ ReceiveQueryData
+    \/ /\ Time < MaxTime
+       /\ \/ ReceiveSubmitData
+          \/ ReceiveQueryData
+    \/ GlobalTimeout
+    \/ Terminating
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 10:14:31 CET 2024 by jungc
+\* Last modified Sat Mar 02 12:22:43 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc
