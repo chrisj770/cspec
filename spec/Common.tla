@@ -4,15 +4,13 @@ EXTENDS Sequences, Integers
 CONSTANTS 
     NumWorkers,
     NumRequesters,
-    NULL, 
-    MaxTime
+    NULL
     
 VARIABLES
     Workers,
     Requesters,
     USCs,
     TSCs, 
-    Time, 
     NextUnique, 
     Storage
     
@@ -106,5 +104,5 @@ IsEncrypted(data) ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 10:45:30 CET 2024 by jungc
+\* Last modified Sun Mar 03 13:22:58 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

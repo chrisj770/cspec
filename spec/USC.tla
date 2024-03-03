@@ -33,10 +33,11 @@ ReceiveRegister_MessageFormat(msg) ==
     /\ msg.userType \in {"WORKER", "REQUESTER"}
     
 ReceiveRegister_IsEnabled == 
-    /\ \E msg \in USCs.msgs : ReceiveRegister_MessageFormat(msg)
+    /\ USCs.state = "WORKING"
     
 ReceiveRegister == 
     /\ ReceiveRegister_IsEnabled
+    /\ \E msg \in USCs.msgs : ReceiveRegister_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in USCs.msgs : ReceiveRegister_MessageFormat(m) 
        IN IF USCs.RegistrationDeadline
           THEN LET response == [type |-> "NOT_REGISTERED", from |-> USCs.pk] 
@@ -71,10 +72,11 @@ ReceiveGetReputation_MessageFormat(msg) ==
     /\ msg.type = "GET_REPUTATION" 
 
 ReceiveGetReputation_IsEnabled == 
-    /\ \E msg \in USCs.msgs : ReceiveGetReputation_MessageFormat(msg)
+    /\ USCs.state = "WORKING"
 
 ReceiveGetReputation == 
     /\ ReceiveGetReputation_IsEnabled 
+    /\ \E msg \in USCs.msgs : ReceiveGetReputation_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in USCs.msgs : ReceiveGetReputation_MessageFormat(m)
            isRegistered == \/ IsRegistered(msg.user.address, "WORKER")
                            \/ IsRegistered(msg.user.address, "REQUESTER")
@@ -89,30 +91,16 @@ ReceiveGetReputation ==
           /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}]
     /\ UNCHANGED <<Workers, Requesters, NextUnique>>
     
-EarlyTermination == 
-    /\ USCs.RegistrationDeadline
-    /\ USCs.users = {}
-    /\ USCs' = [USCs EXCEPT !.state = "TERMINATED"]
-    /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
-    
-GlobalTimeout == 
-    /\ Time >= MaxTime
-    /\ USCs' = [USCs EXCEPT !.state = "TERMINATED"]
-    /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
-    
-Terminating == /\ USCs.state = "TERMINATED"
+Terminating == /\ USCs.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
                
 Next == 
-    \/ /\ Time < MaxTime
-       /\ \/ ReceiveRegister
-          \/ ReceiveGetReputation
-          \/ EarlyTermination
-    \/ GlobalTimeout
+    \/ ReceiveRegister
+    \/ ReceiveGetReputation
     \/ Terminating
 
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 17:19:00 CET 2024 by jungc
+\* Last modified Sun Mar 03 13:19:38 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

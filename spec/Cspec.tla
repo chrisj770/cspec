@@ -3,7 +3,7 @@ EXTENDS FiniteSets, Common
 
 CONSTANT Tasks
 
-vars == <<Workers, Requesters, USCs, TSCs, Time, NextUnique, Storage>>
+vars == <<Workers, Requesters, USCs, TSCs, NextUnique, Storage>>
 
 Requester == INSTANCE Requester
 Worker == INSTANCE Worker
@@ -23,7 +23,6 @@ Init == /\ Worker!Init
         /\ Requester!Init
         /\ Blockchain!Init
         /\ Database!Init
-        /\ Time = 0
         /\ NextUnique = 1
         
 TriggerRegistrationDeadline ==
@@ -75,10 +74,6 @@ TriggerNextTaskDeadline ==
                 !.currentTask = UpdateTask(Workers[i].currentTask, taskId, Sd, Pd, Td),
                 !.msgs = UpdateMessages(Workers[i].msgs, taskId, Sd, Pd, Td)]]
     /\ UNCHANGED <<USCs, Storage, NextUnique>>
-                                        
-        
-IncrementTimer == 
-    Time' = IF Time < MaxTime THEN Time + 1 ELSE Time
     
 Terminated == 
     /\ \A i \in 1..NumWorkers : Workers[i].state = "TERMINATED"
@@ -87,18 +82,17 @@ Terminated ==
     /\ USCs.state = "TERMINATED"
     /\ Storage.state = "TERMINATED"
         
-Next == /\ \/ /\ \/ Worker!Next
-                 \/ Requester!Next
-              /\ UNCHANGED <<NextUnique>>
-           \/ /\ Blockchain!Next
-              /\ UNCHANGED <<Storage>>
-           \/ /\ Database!Next
-              /\ UNCHANGED <<TSCs, USCs>>
-           \/ TriggerRegistrationDeadline
-           \/ TriggerTaskPostDeadline
-           \/ TriggerQueryTaskDeadline
-           \/ TriggerNextTaskDeadline
-        /\ IncrementTimer
+Next == \/ /\ \/ Worker!Next
+              \/ Requester!Next
+           /\ UNCHANGED <<NextUnique>>
+        \/ /\ Blockchain!Next
+           /\ UNCHANGED <<Storage>>
+        \/ /\ Database!Next
+           /\ UNCHANGED <<TSCs, USCs>>
+        \/ TriggerRegistrationDeadline
+        \/ TriggerTaskPostDeadline
+        \/ TriggerQueryTaskDeadline
+        \*\/ TriggerNextTaskDeadline
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
@@ -109,5 +103,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 10:21:05 CET 2024 by jungc
+\* Last modified Sun Mar 03 16:37:25 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc

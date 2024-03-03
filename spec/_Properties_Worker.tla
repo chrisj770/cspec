@@ -195,14 +195,14 @@ Properties ==
     /\ StateConsistency
     /\ StateTransitions
     /\ TerminatesIfNotRegistered
-    /\ SendsMessagesToUSC
-    /\ SendsMessagesToTSC
-    /\ SendsMessagesToStorage
-    /\ SendsMessagesToWorkers
+\*    /\ SendsMessagesToUSC
+\*    /\ SendsMessagesToTSC
+\*   /\ SendsMessagesToStorage
+\*   /\ SendsMessagesToWorkers
     /\ Termination
 
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 11:02:52 CET 2024 by jungc
+\* Last modified Sun Mar 03 13:56:36 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

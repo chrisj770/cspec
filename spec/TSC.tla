@@ -8,16 +8,7 @@ Init == TSCs = [state |-> "WORKING",
                    pk |-> [address |-> "TSC", type |-> "public_key"],
                 tasks |-> {},
      TaskPostDeadline |-> FALSE]  
-           
-HandleStateMismatch(task, msg, expectedState) == 
-    IF task.state = "Canceled"
-        THEN SendMessage(msg.from, [type |-> "CANCELED", from |-> TSCs.pk, task |-> task.address])
-    ELSE IF task.state = "Completed"
-        THEN SendMessage(msg.from, [type |-> "COMPLETED", from |-> TSCs.pk, task |-> task.address]) 
-    ELSE IF task.state # expectedState
-        THEN SendMessage(msg.from, [type |-> "INVALID", from |-> TSCs.pk, task |-> task.address])
-    ELSE FALSE  
-    
+
 AddFields(struct, owner, taskId, address) == 
               struct @@ [taskId |-> taskId,
                         address |-> ToString(address),
@@ -42,14 +33,18 @@ GetWorkerTSC(t) == [Sd |-> t.Sd,
        numParticipants |-> t.numParticipants, 
               category |-> t.category,
                  state |-> t.state] 
-
-GetUpdatedTasks == 
-    {[t EXCEPT !.state = IF \/ /\ t.Sd
-                               /\ t.state \in {"Pending", "Available", "Unavailable"}
-                            \/ /\ t.Pd
-                               /\ t.state \in {"Pending", "Available", "Unavailable", "QEvaluating"} 
-                         THEN "Canceled"
-                         ELSE t.state]: t \in TSCs.tasks}
+                         
+TaskExpired(t) == 
+    \/ /\ t.Sd
+       /\ t.state \in {"Pending", "Available", "Unavailable"}
+    \/ /\ t.Pd
+       /\ t.state \in {"Pending", "Available", "Unavailable", "QEvaluating"} 
+    
+UpdateTasks == 
+    /\ TSCs' = [TSCs EXCEPT !.tasks = {[t EXCEPT !.state = 
+                    IF TaskExpired(t) THEN "Canceled" ELSE t.state] 
+                    : t \in TSCs.tasks}]
+    /\ UNCHANGED <<Workers, Requesters, USCs, Storage, NextUnique>>
 
 (***************************************************************************)
 (*                             RECV_POST_TASKS                             *)
@@ -61,7 +56,7 @@ ReceivePostTasks_MessageFormat(msg) ==
 
 ReceivePostTasks_IsEnabled == 
     /\ TSCs.state = "WORKING"
-    /\ \E msg \in TSCs.msgs : ReceivePostTasks_MessageFormat(msg)
+    /\ ~TSCs.TaskPostDeadline
     
 RECURSIVE PostTasks(_, _, _)
 PostTasks(tasksToAdd, addedTasks, msg) == 
@@ -78,13 +73,10 @@ PostTasks(tasksToAdd, addedTasks, msg) ==
 
 ReceivePostTasks == 
     /\ ReceivePostTasks_IsEnabled
+    /\ \E msg \in TSCs.msgs : ReceivePostTasks_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceivePostTasks_MessageFormat(m) 
-       IN IF ~TSCs.TaskPostDeadline 
-          THEN /\ PostTasks(msg.tasks, {}, msg)
-               /\ SendMessage(msg.from, [type |-> "ACK", from |-> TSCs.pk])                                  
-          ELSE /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
-               /\ SendMessage(msg.from, [type |-> "INVALID", from |-> TSCs.pk])
-               /\ UNCHANGED <<NextUnique>>
+       IN /\ PostTasks(msg.tasks, {}, msg)
+          /\ SendMessage(msg.from, [type |-> "ACK", from |-> TSCs.pk])                                  
     /\ UNCHANGED <<Workers, USCs>>
 
 (***************************************************************************)
@@ -101,7 +93,7 @@ ReceiveQueryTasks_MessageFormat(msg) ==
 
 ReceiveQueryTasks_IsEnabled == 
     /\ TSCs.state = "WORKING"
-    /\ \E msg \in TSCs.msgs : ReceiveQueryTasks_MessageFormat(msg)
+    /\ TSCs.TaskPostDeadline
     
 ReceiveQueryTasks_SendTasks(tasks, msg) == 
     LET matchingTSCs == IF IsWorker(msg.from) THEN tasks 
@@ -116,16 +108,16 @@ ReceiveQueryTasks_SendTasks(tasks, msg) ==
 
 ReceiveQueryTasks == 
     /\ ReceiveQueryTasks_IsEnabled
+    /\ \E msg \in TSCs.msgs : ReceiveQueryTasks_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveQueryTasks_MessageFormat(m)
-           updatedTasks == GetUpdatedTasks
-       IN /\ IF TSCs.TaskPostDeadline
-             THEN ReceiveQueryTasks_SendTasks(updatedTasks, msg)
-             ELSE SendMessage(msg.from, [type |-> "INVALID", from |-> TSCs.pk])
-          /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}, 
-                                  !.tasks = updatedTasks]
-          /\ IF IsRequester(msg.from) 
-             THEN UNCHANGED <<Workers>>
-             ELSE UNCHANGED <<Requesters>> 
+       IN /\ \/ /\ IsRequester(msg.from)
+                /\ \A t \in TSCs.tasks : t.owner = msg.from => t.state = "Unavailable"  
+                /\ ReceiveQueryTasks_SendTasks(TSCs.tasks, msg)
+                /\ UNCHANGED <<Workers>>
+             \/ /\ IsWorker(msg.from)
+                /\ ReceiveQueryTasks_SendTasks(TSCs.tasks, msg)
+                /\ UNCHANGED <<Requesters>>
+          /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
     /\ UNCHANGED <<USCs, NextUnique>>           
 
 (***************************************************************************)
@@ -139,18 +131,17 @@ ReceiveConfirmTask_MessageFormat(msg) ==
 
 ReceiveConfirmTask_IsEnabled == 
     /\ TSCs.state = "WORKING"
-    /\ \E msg \in TSCs.msgs : ReceiveConfirmTask_MessageFormat(msg)
+    /\ TSCs.TaskPostDeadline
                 
 ReceiveConfirmTask == 
     /\ ReceiveConfirmTask_IsEnabled
+    /\ \E msg \in TSCs.msgs : ReceiveConfirmTask_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveConfirmTask_MessageFormat(m) 
-           updatedTasks == GetUpdatedTasks
-           tsc == CHOOSE t \in updatedTasks : msg.task = t.address
+           tsc == CHOOSE t \in TSCs.tasks : msg.task = t.address
            response == [from |-> TSCs.pk, task |-> tsc.address]
        IN \/ /\ msg.from \in tsc.participants
              /\ SendMessage(msg.from, response @@ [type |-> "CONFIRM_SUCCESS"])
-             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg},
-                                     !.tasks = updatedTasks]
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
              /\ UNCHANGED <<USCs>>
           \/ /\ ~(msg.from \in tsc.participants)
              /\ \/ /\ tsc.state \in {"Unavailable", "QEvaluating"}
@@ -159,8 +150,7 @@ ReceiveConfirmTask ==
                    /\ SendMessage(msg.from, response @@ [type |-> "CANCELED"])
                 \/ /\ tsc.state = "Completed"
                    /\ SendMessage(msg.from, response @@ [type |-> "COMPLETED"])                   
-             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}, 
-                                     !.tasks = updatedTasks]
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
              /\ UNCHANGED <<USCs>>
           \/ /\ ~(msg.from \in tsc.participants)
              /\ tsc.state = "Available"
@@ -170,8 +160,7 @@ ReceiveConfirmTask ==
                                 task |-> msg.task]
                 IN /\ SendMessage(USCs.pk, request) 
                    /\ TSCs' = [TSCs EXCEPT !.state = "CHECK_REPUTATION", 
-                                           !.msgs = TSCs.msgs \ {msg}, 
-                                           !.tasks = updatedTasks]
+                                           !.msgs = TSCs.msgs \ {msg}]
              /\ UNCHANGED <<Workers>>
     /\ UNCHANGED <<Requesters, NextUnique>>
     
@@ -187,7 +176,7 @@ CheckReputation_MessageFormat(msg) ==
     
 CheckReputation_IsEnabled == 
     /\ TSCs.state = "CHECK_REPUTATION"
-    /\ \E msg \in TSCs.msgs : CheckReputation_MessageFormat(msg)
+    /\ TSCs.TaskPostDeadline
 
 CanParticipate(reputation, task) == 
     /\ task.state \notin {"Canceled", "Completed"}
@@ -208,22 +197,20 @@ AddParticipant(taskSet, msg, taskId) ==
     
 CheckReputation == 
     /\ CheckReputation_IsEnabled
+    /\ \E msg \in TSCs.msgs : CheckReputation_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in TSCs.msgs : CheckReputation_MessageFormat(m) 
-           updatedTasks == GetUpdatedTasks
-           tsc == CHOOSE t \in updatedTasks : t.address = msg.task
+           tsc == CHOOSE t \in TSCs.tasks : t.address = msg.task
            response == [from |-> TSCs.pk, task |-> tsc.address]
        IN IF msg.type = "REPUTATION"
           THEN IF CanParticipate(msg.reputation, tsc)  
                THEN /\ SendMessage(msg.user, [type |-> "CONFIRM_SUCCESS"] @@ response)
-                    /\ AddParticipant(updatedTasks, msg, tsc.taskId)
+                    /\ AddParticipant(TSCs.tasks, msg, tsc.taskId)
                ELSE /\ SendMessage(msg.user, [type |-> "CONFIRM_FAIL"] @@ response)
                     /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg},
-                                            !.state = "WORKING", 
-                                            !.tasks = updatedTasks]
+                                            !.state = "WORKING"]
           ELSE /\ SendMessage(msg.user, [type |-> "NOT_REGISTERED"] @@ response)
                /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg},
-                                       !.state = "WORKING", 
-                                       !.tasks = updatedTasks]
+                                       !.state = "WORKING"]
     /\ UNCHANGED <<Requesters, USCs, NextUnique>>
 
 (***************************************************************************)
@@ -241,7 +228,7 @@ ReceiveSubmitHash_MessageFormat(msg) ==
 
 ReceiveSubmitHash_IsEnabled == 
     /\ TSCs.state = "WORKING"
-    /\ \E msg \in TSCs.msgs : ReceiveSubmitHash_MessageFormat(msg)
+    /\ TSCs.TaskPostDeadline
 
 SubmitHash(taskSet, msg, taskId) ==  
     LET newTaskSet == {[t EXCEPT 
@@ -256,65 +243,59 @@ SubmitHash(taskSet, msg, taskId) ==
     
 ReceiveSubmitHash == 
     /\ ReceiveSubmitHash_IsEnabled
+    /\ \E msg \in TSCs.msgs : ReceiveSubmitHash_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveSubmitHash_MessageFormat(m)
-           updatedTasks == GetUpdatedTasks
-           tsc == CHOOSE t \in updatedTasks : ReceiveSubmitHash_TaskFormat(t, msg)
-       IN \/ /\ HandleStateMismatch(tsc, msg, "Unavailable")
-             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}, 
-                                     !.tasks = updatedTasks]
-          \/ /\ tsc.state = "Unavailable"
+           tsc == CHOOSE t \in TSCs.tasks : ReceiveSubmitHash_TaskFormat(t, msg)
+           response == [from |-> TSCs.pk, task |-> tsc.address]
+       IN \/ /\ tsc.state = "Unavailable"
              /\ \/ /\ msg.hash \in tsc.hashes
-                   /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}, 
-                                           !.tasks = updatedTasks]
-                \/ SubmitHash(updatedTasks, msg, tsc.taskId)
-             /\ SendMessage(msg.from, [type |-> "ACK", 
-                                       from |-> TSCs.pk, 
-                                       task |-> tsc.address])
+                   /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
+                \/ SubmitHash(TSCs.tasks, msg, tsc.taskId)
+             /\ SendMessage(msg.from, response @@ [type |-> "ACK"])
+          \/ /\ tsc.state = "Canceled"
+             /\ SendMessage(msg.from, response @@ [type |-> "CANCELED"])
+             /\ UNCHANGED <<TSCs>>
+          \/ /\ tsc.state = "Completed"
+             /\ SendMessage(msg.from, response @@ [type |-> "COMPLETED"])                   
+             /\ UNCHANGED <<TSCs>>              
     /\ UNCHANGED <<Requesters, USCs, NextUnique>>
 
 (***************************************************************************)
 (*                            RECV_QUERY_HASHES                            *)
 (***************************************************************************)
 ReceiveQueryHashes_TaskFormat(t, msg) == 
-    IF IsWorker(msg.from)
-    THEN Workers[GetWorker(msg.from)].pk \in t.participants
-    ELSE IF IsRequester(msg.from)
-         THEN msg.from = t.owner
-         ELSE FALSE
+    /\ msg.from = t.owner
 
 ReceiveQueryHashes_MessageFormat(msg) ==
     /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
-    /\ \/ IsWorker(msg.from)
-       \/ IsRequester(msg.from)
+    /\ IsRequester(msg.from)
     /\ msg.type = "QUERY_HASHES"
     /\ \E t \in TSCs.tasks : ReceiveQueryHashes_TaskFormat(t, msg)
 
 ReceiveQueryHashes_IsEnabled ==
     /\ TSCs.state = "WORKING" 
-    /\ \E msg \in TSCs.msgs : /\ ReceiveQueryHashes_MessageFormat(msg)
     
 ReceiveQueryHashes == 
     /\ ReceiveQueryHashes_IsEnabled
+    /\ \E msg \in TSCs.msgs : ReceiveQueryHashes_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveQueryHashes_MessageFormat(m)
-           updatedTasks == GetUpdatedTasks
-           tsc == CHOOSE t \in updatedTasks : ReceiveQueryHashes_TaskFormat(t, msg)
-       IN /\ \/ HandleStateMismatch(tsc, msg, "QEvaluating") 
-             \/ /\ tsc.state = "QEvaluating"
-                /\ SendMessage(msg.from, [type |-> "HASHES", 
-                                          from |-> TSCs.pk, 
-                                          task |-> tsc.address, 
-                                        hashes |-> tsc.hashes])
-          /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}, 
-                                  !.tasks = updatedTasks]
-          /\ IF IsWorker(msg.from) 
-             THEN UNCHANGED <<Requesters>>
-             ELSE UNCHANGED <<Workers>>
-    /\ UNCHANGED <<USCs, NextUnique>>
+           tsc == CHOOSE t \in TSCs.tasks : ReceiveQueryHashes_TaskFormat(t, msg)
+           response == [from |-> TSCs.pk, task |-> tsc.address]
+       IN \/ /\ tsc.state = "QEvaluating"
+             /\ Cardinality(tsc.hashes) = tsc.numParticipants
+             /\ SendMessage(msg.from, response @@ [type |-> "HASHES", hashes |-> tsc.hashes])
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
+          \/ /\ tsc.state = "Canceled"
+             /\ SendMessage(msg.from, response @@ [type |-> "CANCELED"])
+             /\ UNCHANGED <<TSCs>>
+          \/ /\ tsc.state = "Completed"
+             /\ SendMessage(msg.from, response @@ [type |-> "COMPLETED"])                   
+             /\ UNCHANGED <<TSCs>>
+    /\ UNCHANGED <<Workers, USCs, NextUnique>>
 
 (***************************************************************************)
 (*                             RECV_SUBMIT_EVAL                            *)
 (***************************************************************************)
-
 ReceiveSubmitEval_TaskFormat(t, msg) ==
     /\ Cardinality(t.participants) = t.numParticipants
     /\ \/ /\ IsWorker(msg.from)
@@ -327,11 +308,9 @@ ReceiveSubmitEval_TaskFormat(t, msg) ==
 ReceiveSubmitEval_MessageFormat(msg) == 
     /\ \A f \in {"from", "type", "task", "weights"} : f \in DOMAIN msg
     /\ msg.type = "SUBMIT_EVAL"
-    /\ \E t \in TSCs.tasks : ReceiveQueryHashes_TaskFormat(t, msg) 
 
 ReceiveSubmitEval_IsEnabled == 
     /\ TSCs.state = "WORKING"
-    /\ \E msg \in TSCs.msgs : /\ ReceiveSubmitEval_MessageFormat(msg)
     
 SubmitEval(taskSet, msg, taskId, userType) == 
     LET newTaskSet == {[t EXCEPT 
@@ -349,41 +328,35 @@ SubmitEval(taskSet, msg, taskId, userType) ==
      IN TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg},
                              !.tasks = newTaskSet]
                                         
-    
 ReceiveSubmitEval ==
     /\ ReceiveSubmitEval_IsEnabled
+    /\ \E msg \in TSCs.msgs : /\ ReceiveSubmitEval_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveSubmitEval_MessageFormat(m)
-           updatedTasks == GetUpdatedTasks
-           tsc == CHOOSE t \in updatedTasks : ReceiveSubmitEval_TaskFormat(t, msg)
-       IN /\ \/ /\ HandleStateMismatch(tsc, msg, "QEvaluating") 
-                /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}, 
-                                        !.tasks = updatedTasks]
-             \/ /\ tsc.state = "QEvaluating"
+           tsc == CHOOSE t \in TSCs.tasks : ReceiveSubmitEval_TaskFormat(t, msg)
+           response == [from |-> TSCs.pk, task |-> tsc.address]
+       IN /\ \/ /\ tsc.state = "QEvaluating"
                 /\ \/ /\ IsRequester(msg.from)
-                      /\ SubmitEval(updatedTasks, msg, tsc.taskId, "REQUESTER")
-                      /\ SendMessage(msg.from, [type |-> "ACK", 
-                                                from |-> TSCs.pk, 
-                                                task |-> tsc.address])
+                      /\ SubmitEval(TSCs.tasks, msg, tsc.taskId, "REQUESTER")
+                      /\ SendMessage(msg.from, response @@ [type |-> "ACK"])
                    \/ /\ IsWorker(msg.from) 
-                      /\ SubmitEval(updatedTasks, msg, tsc.taskId, "WORKER")
-                      /\ SendMessage(msg.from, [type |-> "ACK", 
-                                                from |-> TSCs.pk, 
-                                                task |-> tsc.address])
+                      /\ SubmitEval(TSCs.tasks, msg, tsc.taskId, "WORKER")
+                      /\ SendMessage(msg.from, response @@ [type |-> "ACK"])
+             \/ /\ tsc.state = "Canceled"
+                /\ SendMessage(msg.from, response @@ [type |-> "CANCELED"])
+                /\ UNCHANGED <<TSCs>>
+             \/ /\ tsc.state = "Completed"
+                /\ SendMessage(msg.from, response @@ [type |-> "COMPLETED"])                   
+                /\ UNCHANGED <<TSCs>>                                    
           /\ IF IsWorker(msg.from) 
              THEN UNCHANGED <<Requesters>>
              ELSE UNCHANGED <<Workers>>
     /\ UNCHANGED <<USCs, NextUnique>>
-
-GlobalTimeout == 
-    /\ Time >= MaxTime
-    /\ TSCs' = [TSCs EXCEPT !.state = "TERMINATED"]
-    /\ UNCHANGED <<Workers, Requesters, USCs, Storage, NextUnique>>
     
-Terminating == /\ TSCs.state = "TERMINATED"
+Terminating == /\ TSCs.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
 
 Next == 
-    \/ /\ Time < MaxTime
+    \/ /\ \A t \in TSCs.tasks : ~TaskExpired(t)
        /\ \/ ReceivePostTasks
           \/ ReceiveQueryTasks
           \/ ReceiveConfirmTask
@@ -391,10 +364,11 @@ Next ==
           \/ ReceiveQueryHashes
           \/ ReceiveSubmitEval
           \/ CheckReputation
-    \/ GlobalTimeout
+    \/ /\ \E t \in TSCs.tasks : TaskExpired(t)
+       /\ UpdateTasks
     \/ Terminating
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 08:58:04 CET 2024 by jungc
+\* Last modified Sun Mar 03 16:11:21 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

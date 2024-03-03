@@ -16,10 +16,11 @@ ReceiveSubmitData_MessageFormat(msg) ==
     /\ IsWorker(msg.from)
 
 ReceiveSubmitData_IsEnabled == 
-    /\ \E msg \in Storage.msgs : ReceiveSubmitData_MessageFormat(msg)
-    
+    /\ Storage.state = "WORKING"
+        
 ReceiveSubmitData == 
     /\ ReceiveSubmitData_IsEnabled
+    /\ \E msg \in Storage.msgs : ReceiveSubmitData_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in Storage.msgs : ReceiveSubmitData_MessageFormat(m)
            newData == [hash |-> ToString(NextUnique), 
                     address |-> msg.from, 
@@ -43,10 +44,11 @@ ReceiveQueryData_MessageFormat(msg) ==
     /\ \A h \in msg.hashes : \E struct \in Storage.data : struct.hash = h
     
 ReceiveQueryData_IsEnabled == 
-    /\ \E msg \in Storage.msgs : ReceiveQueryData_MessageFormat(msg)
+    /\ Storage.state = "WORKING"
     
 ReceiveQueryData ==
     /\ ReceiveQueryData_IsEnabled
+    /\ \E msg \in Storage.msgs : ReceiveQueryData_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in Storage.msgs : ReceiveQueryData_MessageFormat(m) IN 
         /\ LET data == {d \in Storage.data : d.hash \in msg.hashes}
                response == [type |-> "DATA", 
@@ -59,23 +61,16 @@ ReceiveQueryData ==
                    /\ UNCHANGED <<Workers>>
         /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \ {msg}]      
     /\ UNCHANGED <<NextUnique>>                                        
-
-GlobalTimeout == 
-    /\ Time >= MaxTime
-    /\ Storage' = [Storage EXCEPT !.state = "TERMINATED"]
-    /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, NextUnique>>
     
-Terminating == /\ Storage.state = "TERMINATED"
+Terminating == /\ Storage.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
 
 Next == 
-    \/ /\ Time < MaxTime
-       /\ \/ ReceiveSubmitData
-          \/ ReceiveQueryData
-    \/ GlobalTimeout
+    \/ ReceiveSubmitData
+    \/ ReceiveQueryData
     \/ Terminating
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 12:22:43 CET 2024 by jungc
+\* Last modified Sun Mar 03 13:20:40 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc
