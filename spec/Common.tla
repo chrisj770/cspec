@@ -4,46 +4,42 @@ EXTENDS Sequences, Integers
 CONSTANTS 
     NumWorkers,
     NumRequesters,
-    NULL, 
-    MaxTime
+    NULL
     
 VARIABLES
     Workers,
     Requesters,
     USCs,
     TSCs, 
-    Time, 
     NextUnique, 
     Storage
-    
-IsWorker(public_key) == 
-    \E i \in 1..NumWorkers : Workers[i].pk = public_key
-    
-IsRequester(public_key) == 
-    \E i \in 1..NumRequesters : Requesters[i].pk = public_key
     
 GetWorker(public_key) == 
     CHOOSE i \in 1..NumWorkers : Workers[i].pk = public_key
     
 GetRequester(public_key) == 
     CHOOSE i \in 1..NumRequesters : Requesters[i].pk = public_key
+    
+SendTSCMessage(message) == 
+    TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \union {message}]
 
-SendMessage(recipient, message) == 
-    IF recipient.address = "TSC"
-         THEN TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \union {message}]
-    ELSE IF recipient.address = "USC"
-         THEN USCs' = [USCs EXCEPT !.msgs = USCs.msgs \union {message}]
-    ELSE IF recipient.address = "STORAGE"
-         THEN Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {message}]
-    ELSE IF IsRequester(recipient)
-         THEN LET rid == GetRequester(recipient)
-              IN Requesters' = [Requesters EXCEPT ![rid].msgs = 
-                                Requesters[rid].msgs \union {message}]
-    ELSE IF IsWorker(recipient) 
-         THEN LET wid == GetWorker(recipient)
-              IN Workers' = [Workers EXCEPT ![wid].msgs =
+SendUSCMessage(message) == 
+    USCs' = [USCs EXCEPT !.msgs = USCs.msgs \union {message}]
+    
+SendStorageMessage(message) == 
+    Storage' = [Storage EXCEPT !.msgs = Storage.msgs \union {message}]
+    
+SendRequesterMessage(recipient, message) == 
+    /\ \E i \in 1..NumRequesters : Requesters[i].pk = recipient
+    /\ LET rid == GetRequester(recipient)
+       IN Requesters' = [Requesters EXCEPT ![rid].msgs = 
+                            Requesters[rid].msgs \union {message}]
+                            
+SendWorkerMessage(recipient, message) == 
+    /\ \E i \in 1..NumWorkers : Workers[i].pk = recipient
+    /\ LET wid == GetWorker(recipient)
+       IN Workers' = [Workers EXCEPT ![wid].msgs =
                              Workers[wid].msgs \union {message}]
-    ELSE FALSE
   
 (* 
 \* (TODO: Might need this for later) 
@@ -106,5 +102,5 @@ IsEncrypted(data) ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 10:45:30 CET 2024 by jungc
+\* Last modified Sun Mar 03 20:26:28 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

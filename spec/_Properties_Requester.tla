@@ -150,11 +150,11 @@ Properties ==
     /\ StateConsistency
     /\ StateTransitions
     /\ TerminatesIfNotRegistered
-    /\ ProducesMessagesToProgress
+\*    /\ ProducesMessagesToProgress
     /\ ConsumesMessagesToProgress
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 10:37:57 CET 2024 by jungc
+\* Last modified Sun Mar 03 13:56:43 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

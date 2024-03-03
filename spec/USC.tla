@@ -9,6 +9,15 @@ Init == USCs = [msgs |-> {},
                state |-> "WORKING", 
 RegistrationDeadline |-> FALSE]
 
+
+IsWorker(public_key) == 
+    \E usc \in USCs.users: /\ usc.pk = public_key
+                           /\ usc.userType = "WORKER"
+                      
+IsRequester(public_key) == 
+    \E usc \in USCs.users: /\ usc.pk = public_key
+                           /\ usc.userType = "REQUESTER"
+
 (***************************************************************************)
 (*                                REGISTER                                 *)
 (***************************************************************************)    
@@ -22,8 +31,7 @@ Register(key, msg) ==
     /\ LET newUser == [address |-> key, 
                     reputation |-> 1, 
                       userType |-> msg.userType,
-                            pk |-> [address |-> key, type |-> "public_key"], 
-                            sk |-> [address |-> key, type |-> "private_key"]]
+                            pk |-> [address |-> key, type |-> "public_key"]]
        IN USCs' = [USCs EXCEPT !.users = USCs.users \union {newUser},
                                !.msgs = USCs.msgs \ {msg}]
     
@@ -33,17 +41,20 @@ ReceiveRegister_MessageFormat(msg) ==
     /\ msg.userType \in {"WORKER", "REQUESTER"}
     
 ReceiveRegister_IsEnabled == 
-    /\ \E msg \in USCs.msgs : ReceiveRegister_MessageFormat(msg)
+    /\ USCs.state = "WORKING"
     
 ReceiveRegister == 
     /\ ReceiveRegister_IsEnabled
+    /\ \E msg \in USCs.msgs : ReceiveRegister_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in USCs.msgs : ReceiveRegister_MessageFormat(m) 
        IN IF USCs.RegistrationDeadline
           THEN LET response == [type |-> "NOT_REGISTERED", from |-> USCs.pk] 
                IN /\ IF msg.userType = "WORKER"
-                     THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = Workers[msg.from].msgs \union {response}]
+                     THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
+                                         Workers[msg.from].msgs \union {response}]
                           /\ UNCHANGED <<Requesters>>
-                     ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = Requesters[msg.from].msgs \union {response}]
+                     ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
+                                            Requesters[msg.from].msgs \union {response}]
                           /\ UNCHANGED <<Workers>>
                   /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}] 
                   /\ UNCHANGED <<NextUnique>>
@@ -56,63 +67,33 @@ ReceiveRegister ==
                                         pk |-> [address |-> newKey, type |-> "public_key"], 
                                         sk |-> [address |-> newKey, type |-> "private_key"]]
                      IN IF msg.userType = "WORKER"
-                        THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = Workers[msg.from].msgs \union {response}]
+                        THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
+                                            Workers[msg.from].msgs \union {response}]
                              /\ UNCHANGED <<Requesters>>
-                        ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = Requesters[msg.from].msgs \union {response}]
+                        ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
+                                               Requesters[msg.from].msgs \union {response}]
                              /\ UNCHANGED <<Workers>> 
     /\ UNCHANGED <<TSCs>> 
 
 (***************************************************************************)
 (*                             GET_REPUTATION                              *)
 (***************************************************************************) 
-ReceiveGetReputation_MessageFormat(msg) == 
-    /\ \A f \in {"from", "type", "user", "task"} : f \in DOMAIN msg
-    /\ msg.from = TSCs.pk
-    /\ msg.type = "GET_REPUTATION" 
-
-ReceiveGetReputation_IsEnabled == 
-    /\ \E msg \in USCs.msgs : ReceiveGetReputation_MessageFormat(msg)
-
-ReceiveGetReputation == 
-    /\ ReceiveGetReputation_IsEnabled 
-    /\ LET msg == CHOOSE m \in USCs.msgs : ReceiveGetReputation_MessageFormat(m)
-           isRegistered == \/ IsRegistered(msg.user.address, "WORKER")
-                           \/ IsRegistered(msg.user.address, "REQUESTER")
-           user == IF ~isRegistered THEN NULL
-                   ELSE CHOOSE u \in USCs.users : u.pk = msg.user
-           response == [type |-> IF isRegistered THEN "REPUTATION" ELSE "NOT_REGISTERED",
-                        from |-> USCs.pk,
-                  reputation |-> IF isRegistered THEN user.reputation ELSE NULL, 
-                        user |-> IF isRegistered THEN msg.user ELSE NULL, 
-                        task |-> msg.task]
-       IN /\ SendMessage(TSCs.pk, response)
-          /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}]
-    /\ UNCHANGED <<Workers, Requesters, NextUnique>>
+GetReputation(user) == 
+    LET usr == IF \/ IsRegistered(user.address, "WORKER")
+                  \/ IsRegistered(user.address, "REQUESTER") 
+               THEN CHOOSE u \in USCs.users : u.pk = user
+               ELSE NULL
+    IN usr.reputation
     
-EarlyTermination == 
-    /\ USCs.RegistrationDeadline
-    /\ USCs.users = {}
-    /\ USCs' = [USCs EXCEPT !.state = "TERMINATED"]
-    /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
-    
-GlobalTimeout == 
-    /\ Time >= MaxTime
-    /\ USCs' = [USCs EXCEPT !.state = "TERMINATED"]
-    /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
-    
-Terminating == /\ USCs.state = "TERMINATED"
+Terminating == /\ USCs.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
                
 Next == 
-    \/ /\ Time < MaxTime
-       /\ \/ ReceiveRegister
-          \/ ReceiveGetReputation
-          \/ EarlyTermination
-    \/ GlobalTimeout
+    \/ ReceiveRegister
     \/ Terminating
 
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 17:19:00 CET 2024 by jungc
+\* Last modified Sun Mar 03 21:08:43 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc
