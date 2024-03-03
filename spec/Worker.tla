@@ -78,7 +78,7 @@ SendRegister(i) ==
     /\ LET request == [type |-> "REGISTER", 
                    userType |-> "WORKER", 
                        from |-> i]
-       IN /\ SendMessage(USCs.pk, request)
+       IN /\ SendUSCMessage(request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_REGISTER"]
     /\ UNCHANGED <<Requesters, TSCs, Storage>>
 
@@ -122,7 +122,7 @@ SendQueryTasks(i) ==
     /\ LET request == [type |-> "QUERY_TASKS", 
                        from |-> Workers[i].pk,
                       owner |-> NULL]
-       IN /\ SendMessage(TSCs.pk, request)
+       IN /\ SendTSCMessage(request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
     
@@ -176,7 +176,7 @@ SendConfirmTask(i) ==
            request == [type |-> "CONFIRM_TASK", 
                        from |-> Workers[i].pk, 
                        task |-> nextConfTask.address]
-       IN /\ SendMessage(TSCs.pk, request)
+       IN /\ SendTSCMessage(request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_CONFIRM_TASK",
                                         ![i].currentConfirmTask = nextConfTask.address]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
@@ -271,7 +271,7 @@ ReceiveSendKey(i) ==
            response == [type |-> "ACK", 
                         from |-> Workers[i].pk,
                         task |-> Workers[i].currentTask.address]
-       IN /\ SendMessage(msg.from, response)
+       IN /\ SendRequesterMessage(msg.from, response)
           /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg},
                                         ![i].requesterSk = decryptedKeyshare, 
                                         ![i].state = "COMPUTE"] 
@@ -360,7 +360,7 @@ SendSubmitHash(i) ==
                        from |-> Workers[i].pk,
                        hash |-> Workers[i].currentHash,
                        task |-> Workers[i].currentTask.address]
-       IN /\ SendMessage(TSCs.pk, request)
+       IN /\ SendTSCMessage(request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_HASH"]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
 
@@ -414,7 +414,7 @@ ReceiveWeights(i) ==
            response == [type |-> "ACK", 
                         from |-> Workers[i].pk,
                         task |-> Workers[i].currentTask.address] 
-       IN /\ SendMessage(msg.from, response)
+       IN /\ SendRequesterMessage(msg.from, response)
           /\ Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg}, 
                                         ![i].requesterWeights = msg.weights,
                                         ![i].participantsSent = otherParticipants, 
@@ -441,7 +441,7 @@ SendQueryData(i) ==
     /\ LET request == [type |-> "QUERY_DATA", 
                        from |-> Workers[i].pk, 
                      hashes |-> {Workers[i].currentHash}]
-       IN /\ SendMessage(Storage.pk, request)
+       IN /\ SendStorageMessage(request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_QUERY_DATA"]
     /\ UNCHANGED <<Requesters, TSCs, USCs>> 
     
@@ -597,7 +597,7 @@ SendSubmitEval(i) ==
                        from |-> Workers[i].pk,
                        task |-> Workers[i].currentTask.address,
                     weights |-> Workers[i].weights]
-       IN /\ SendMessage(TSCs.pk, request) 
+       IN /\ SendTSCMessage(request) 
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_SUBMIT_EVAL"]
     /\ UNCHANGED <<Requesters, USCs, Storage>> 
 
@@ -724,5 +724,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 15:39:39 CET 2024 by jungc
+\* Last modified Sun Mar 03 20:29:08 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

@@ -9,6 +9,15 @@ Init == USCs = [msgs |-> {},
                state |-> "WORKING", 
 RegistrationDeadline |-> FALSE]
 
+
+IsWorker(public_key) == 
+    \E usc \in USCs.users: /\ usc.pk = public_key
+                           /\ usc.userType = "WORKER"
+                      
+IsRequester(public_key) == 
+    \E usc \in USCs.users: /\ usc.pk = public_key
+                           /\ usc.userType = "REQUESTER"
+
 (***************************************************************************)
 (*                                REGISTER                                 *)
 (***************************************************************************)    
@@ -22,8 +31,7 @@ Register(key, msg) ==
     /\ LET newUser == [address |-> key, 
                     reputation |-> 1, 
                       userType |-> msg.userType,
-                            pk |-> [address |-> key, type |-> "public_key"], 
-                            sk |-> [address |-> key, type |-> "private_key"]]
+                            pk |-> [address |-> key, type |-> "public_key"]]
        IN USCs' = [USCs EXCEPT !.users = USCs.users \union {newUser},
                                !.msgs = USCs.msgs \ {msg}]
     
@@ -66,41 +74,22 @@ ReceiveRegister ==
 (***************************************************************************)
 (*                             GET_REPUTATION                              *)
 (***************************************************************************) 
-ReceiveGetReputation_MessageFormat(msg) == 
-    /\ \A f \in {"from", "type", "user", "task"} : f \in DOMAIN msg
-    /\ msg.from = TSCs.pk
-    /\ msg.type = "GET_REPUTATION" 
-
-ReceiveGetReputation_IsEnabled == 
-    /\ USCs.state = "WORKING"
-
-ReceiveGetReputation == 
-    /\ ReceiveGetReputation_IsEnabled 
-    /\ \E msg \in USCs.msgs : ReceiveGetReputation_MessageFormat(msg)
-    /\ LET msg == CHOOSE m \in USCs.msgs : ReceiveGetReputation_MessageFormat(m)
-           isRegistered == \/ IsRegistered(msg.user.address, "WORKER")
-                           \/ IsRegistered(msg.user.address, "REQUESTER")
-           user == IF ~isRegistered THEN NULL
-                   ELSE CHOOSE u \in USCs.users : u.pk = msg.user
-           response == [type |-> IF isRegistered THEN "REPUTATION" ELSE "NOT_REGISTERED",
-                        from |-> USCs.pk,
-                  reputation |-> IF isRegistered THEN user.reputation ELSE NULL, 
-                        user |-> IF isRegistered THEN msg.user ELSE NULL, 
-                        task |-> msg.task]
-       IN /\ SendMessage(TSCs.pk, response)
-          /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}]
-    /\ UNCHANGED <<Workers, Requesters, NextUnique>>
+GetReputation(user) == 
+    LET usr == IF \/ IsRegistered(user.address, "WORKER")
+                  \/ IsRegistered(user.address, "REQUESTER") 
+               THEN CHOOSE u \in USCs.users : u.pk = user
+               ELSE NULL
+    IN usr.reputation
     
 Terminating == /\ USCs.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
                
 Next == 
     \/ ReceiveRegister
-    \/ ReceiveGetReputation
     \/ Terminating
 
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 13:19:38 CET 2024 by jungc
+\* Last modified Sun Mar 03 20:47:25 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

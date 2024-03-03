@@ -13,7 +13,6 @@ Init == Storage = [msgs |-> {},
 (***************************************************************************) 
 ReceiveSubmitData_MessageFormat(msg) == 
     /\ msg.type = "SUBMIT_DATA" 
-    /\ IsWorker(msg.from)
 
 ReceiveSubmitData_IsEnabled == 
     /\ Storage.state = "WORKING"
@@ -30,7 +29,7 @@ ReceiveSubmitData ==
                         hash |-> ToString(NextUnique)] 
        IN /\ Storage' = [Storage EXCEPT !.data = Storage.data \union {newData},
                                         !.msgs = Storage.msgs \ {msg}]
-          /\ SendMessage(msg.from, response)
+          /\ SendWorkerMessage(msg.from, response)
           /\ NextUnique' = NextUnique + 1
     /\ UNCHANGED <<Requesters>>
 
@@ -39,8 +38,6 @@ ReceiveSubmitData ==
 (***************************************************************************) 
 ReceiveQueryData_MessageFormat(msg) == 
     /\ msg.type = "QUERY_DATA"
-    /\ \/ IsWorker(msg.from)
-       \/ IsRequester(msg.from)
     /\ \A h \in msg.hashes : \E struct \in Storage.data : struct.hash = h
     
 ReceiveQueryData_IsEnabled == 
@@ -54,11 +51,10 @@ ReceiveQueryData ==
                response == [type |-> "DATA", 
                             from |-> Storage.pk, 
                          allData |-> data] 
-           IN IF IsWorker(msg.from)
-              THEN /\ SendMessage(msg.from, response)
-                   /\ UNCHANGED <<Requesters>> 
-              ELSE /\ SendMessage(msg.from, response)
-                   /\ UNCHANGED <<Workers>>
+           IN \/ /\ SendWorkerMessage(msg.from, response)
+                 /\ UNCHANGED <<Requesters>> 
+              \/ /\ SendRequesterMessage(msg.from, response)
+                 /\ UNCHANGED <<Workers>>
         /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \ {msg}]      
     /\ UNCHANGED <<NextUnique>>                                        
     
@@ -72,5 +68,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 13:20:40 CET 2024 by jungc
+\* Last modified Sun Mar 03 20:34:15 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc

@@ -74,7 +74,7 @@ SendRegister(i) ==
     /\ LET request == [type |-> "REGISTER", 
                    userType |-> "REQUESTER", 
                        from |-> i]
-       IN /\ SendMessage(USCs.pk, request) 
+       IN /\ SendUSCMessage(request) 
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_REGISTER"]
     /\ UNCHANGED <<Workers, TSCs, Storage>>
 
@@ -118,7 +118,7 @@ SendPostTasks(i) ==
     /\ LET request == [type |-> "POST_TASKS", 
                        from |-> Requesters[i].pk, 
                       tasks |-> Requesters[i].unpostedTasks]
-       IN /\ SendMessage(TSCs.pk, request)
+       IN /\ SendTSCMessage(request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_POST_TASKS"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
 
@@ -158,7 +158,7 @@ SendQueryTasks(i) ==
     /\ LET request == [type |-> "QUERY_TASKS", 
                        from |-> Requesters[i].pk, 
                       owner |-> Requesters[i].pk]
-       IN /\ SendMessage(TSCs.pk, request)
+       IN /\ SendTSCMessage(request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
      
@@ -229,7 +229,7 @@ SendKey(i) ==
                        from |-> Requesters[i].pk, 
                        task |-> Requesters[i].currentTask.address,
                    keyshare |-> Encrypt(splitkeyshare, nextWorkerPk)]
-       IN /\ SendMessage(nextWorkerPk, request)
+       IN /\ SendWorkerMessage(nextWorkerPk, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
     /\ UNCHANGED <<TSCs, USCs, Storage>>
 
@@ -279,7 +279,7 @@ SendQueryHashes(i) ==
     /\ LET request == [type |-> "QUERY_HASHES", 
                        from |-> Requesters[i].pk, 
                        task |-> Requesters[i].currentTask.address] 
-       IN /\ SendMessage(TSCs.pk, request)
+       IN /\ SendTSCMessage(request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
     
@@ -331,7 +331,7 @@ SendQueryData(i) ==
     /\ LET request == [type |-> "QUERY_DATA", 
                        from |-> Requesters[i].pk, 
                      hashes |-> Requesters[i].submittedHashes]
-       IN /\ SendMessage(Storage.pk, request)
+       IN /\ SendStorageMessage(request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_DATA"]
     /\ UNCHANGED <<Workers, TSCs, USCs>> 
     
@@ -399,7 +399,7 @@ SendSubmitEval(i) ==
                        from |-> Requesters[i].pk,
                        task |-> Requesters[i].currentTask.address,
                     weights |-> Requesters[i].weights]
-       IN /\ SendMessage(TSCs.pk, request) 
+       IN /\ SendTSCMessage(request) 
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_SUBMIT_EVAL"]
     /\ UNCHANGED <<Workers, USCs, Storage>> 
 
@@ -449,7 +449,7 @@ SendWeights(i) ==
                        from |-> Requesters[i].pk, 
                     weights |-> Requesters[i].weights,
                        task |-> Requesters[i].currentTask.address]
-       IN /\ SendMessage(nextWorkerPk, request)
+       IN /\ SendWorkerMessage(nextWorkerPk, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_WEIGHTS"]
     /\ UNCHANGED <<TSCs, USCs, Storage>>
     
@@ -572,5 +572,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 15:46:53 CET 2024 by jungc
+\* Last modified Sun Mar 03 20:29:58 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc
