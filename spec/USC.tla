@@ -1,15 +1,13 @@
 -------------------------------- MODULE USC --------------------------------
 EXTENDS Integers, Sequences, FiniteSets, TLC, Common 
 
-CONSTANT RegistrationDeadline
-
 TypeOK == TRUE
 
-Init == 
-    USCs = [msgs |-> {},
-              pk |-> [address |-> "USC", type |-> "public_key"],
-           users |-> {},
-           state |-> "WORKING"]
+Init == USCs = [msgs |-> {},
+                  pk |-> [address |-> "USC", type |-> "public_key"],
+               users |-> {},
+               state |-> "WORKING", 
+RegistrationDeadline |-> FALSE]
 
 (***************************************************************************)
 (*                                REGISTER                                 *)
@@ -40,7 +38,7 @@ ReceiveRegister_IsEnabled ==
 ReceiveRegister == 
     /\ ReceiveRegister_IsEnabled
     /\ LET msg == CHOOSE m \in USCs.msgs : ReceiveRegister_MessageFormat(m) 
-       IN IF Time >= RegistrationDeadline
+       IN IF USCs.RegistrationDeadline
           THEN LET response == [type |-> "NOT_REGISTERED", from |-> USCs.pk] 
                IN /\ IF msg.userType = "WORKER"
                      THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = Workers[msg.from].msgs \union {response}]
@@ -92,7 +90,7 @@ ReceiveGetReputation ==
     /\ UNCHANGED <<Workers, Requesters, NextUnique>>
     
 EarlyTermination == 
-    /\ Time >= RegistrationDeadline
+    /\ USCs.RegistrationDeadline
     /\ USCs.users = {}
     /\ USCs' = [USCs EXCEPT !.state = "TERMINATED"]
     /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
@@ -116,5 +114,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 12:20:20 CET 2024 by jungc
+\* Last modified Sat Mar 02 17:19:00 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

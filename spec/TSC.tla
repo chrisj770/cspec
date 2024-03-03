@@ -1,15 +1,13 @@
 -------------------------------- MODULE TSC --------------------------------
 EXTENDS FiniteSets, Sequences, Integers, TLC, Common 
 
-CONSTANT TaskPostDeadline
-
 TypeOK == TRUE
 
-Init == 
-    TSCs = [state |-> "WORKING",
-             msgs |-> {},
-               pk |-> [address |-> "TSC", type |-> "public_key"],
-            tasks |-> {}]  
+Init == TSCs = [state |-> "WORKING",
+                 msgs |-> {},
+                   pk |-> [address |-> "TSC", type |-> "public_key"],
+                tasks |-> {},
+     TaskPostDeadline |-> FALSE]  
            
 HandleStateMismatch(task, msg, expectedState) == 
     IF task.state = "Canceled"
@@ -46,9 +44,9 @@ GetWorkerTSC(t) == [Sd |-> t.Sd,
                  state |-> t.state] 
 
 GetUpdatedTasks == 
-    {[t EXCEPT !.state = IF \/ /\ Time >= t.Sd 
+    {[t EXCEPT !.state = IF \/ /\ t.Sd
                                /\ t.state \in {"Pending", "Available", "Unavailable"}
-                            \/ /\ Time >= t.Pd
+                            \/ /\ t.Pd
                                /\ t.state \in {"Pending", "Available", "Unavailable", "QEvaluating"} 
                          THEN "Canceled"
                          ELSE t.state]: t \in TSCs.tasks}
@@ -81,7 +79,7 @@ PostTasks(tasksToAdd, addedTasks, msg) ==
 ReceivePostTasks == 
     /\ ReceivePostTasks_IsEnabled
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceivePostTasks_MessageFormat(m) 
-       IN IF Time < TaskPostDeadline 
+       IN IF ~TSCs.TaskPostDeadline 
           THEN /\ PostTasks(msg.tasks, {}, msg)
                /\ SendMessage(msg.from, [type |-> "ACK", from |-> TSCs.pk])                                  
           ELSE /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
@@ -120,7 +118,7 @@ ReceiveQueryTasks ==
     /\ ReceiveQueryTasks_IsEnabled
     /\ LET msg == CHOOSE m \in TSCs.msgs : ReceiveQueryTasks_MessageFormat(m)
            updatedTasks == GetUpdatedTasks
-       IN /\ IF Time >= TaskPostDeadline
+       IN /\ IF TSCs.TaskPostDeadline
              THEN ReceiveQueryTasks_SendTasks(updatedTasks, msg)
              ELSE SendMessage(msg.from, [type |-> "INVALID", from |-> TSCs.pk])
           /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}, 
@@ -398,5 +396,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 14:42:17 CET 2024 by jungc
+\* Last modified Sun Mar 03 08:58:04 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

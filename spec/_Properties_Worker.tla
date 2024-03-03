@@ -30,7 +30,7 @@ AllowedStateTransitions == {
    [start |-> "RECV_CONFIRM_TASK",  \* RECV_CONFIRM_TASK: Await confirmation for specific task from TSC
       end |-> {"RECV_SEND_KEY",     \* Transitions upon receiving any response with 0 unconfirmed tasks remaining and 1+ successful confirmations
                "SEND_CONFIRM_TASK", \* Transitions upon receiving any response with 1+ unconfirmed tasks remaining
-               "SEND_QUERY_TASK",   \* Transitions upon receiving "INVALID"
+               "SEND_QUERY_TASKS",  \* Transitions upon receiving "INVALID"
                "TERMINATED"}],      \* Transitions upon receiving "NOT_REGISTERED", or global timeout 
       
    [start |-> "RECV_SEND_KEY",      \* RECV_SEND_KEY: Await key-share from REQUESTER
@@ -147,5 +147,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sat Mar 02 14:48:58 CET 2024 by jungc
+\* Last modified Sat Mar 02 18:19:42 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

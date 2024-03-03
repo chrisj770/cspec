@@ -1,9 +1,5 @@
 ----------------------------- MODULE Blockchain -----------------------------
 EXTENDS Common
-
-CONSTANTS 
-    TaskPostDeadline, 
-    RegistrationDeadline
     
 TSC == INSTANCE TSC
 USC == INSTANCE USC
@@ -22,5 +18,5 @@ Next ==
    
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 01 10:11:28 CET 2024 by jungc
+\* Last modified Sat Mar 02 17:17:55 CET 2024 by jungc
 \* Created Fri Feb 23 15:36:50 CET 2024 by jungc
