@@ -69,6 +69,7 @@ TriggerNextTaskDeadline ==
                 !.currentTask = UpdateTask(Requesters[i].currentTask, taskId, Sd, Pd, Td),
                 !.msgs = UpdateMessages(Requesters[i].msgs, taskId, Sd, Pd, Td)]]
           /\ Workers' = [i \in 1..NumWorkers |-> [Workers[i] EXCEPT
+                !.pendingTasks = {UpdateTask(t, taskId, Sd, Pd, Td) : t \in Workers[i].pendingTasks},
                 !.unconfirmedTasks = {UpdateTask(t, taskId, Sd, Pd, Td) : t \in Workers[i].unconfirmedTasks},
                 !.confirmedTasks = {UpdateTask(t, taskId, Sd, Pd, Td) : t \in Workers[i].confirmedTasks},
                 !.currentTask = UpdateTask(Workers[i].currentTask, taskId, Sd, Pd, Td),
@@ -92,7 +93,7 @@ Next == \/ /\ \/ Worker!Next
         \/ TriggerRegistrationDeadline
         \/ TriggerTaskPostDeadline
         \/ TriggerQueryTaskDeadline
-        \*\/ TriggerNextTaskDeadline
+        \/ TriggerNextTaskDeadline
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
@@ -103,5 +104,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 16:37:25 CET 2024 by jungc
+\* Last modified Sun Mar 03 21:41:53 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc

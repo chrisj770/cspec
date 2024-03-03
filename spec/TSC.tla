@@ -70,7 +70,8 @@ PostTasks(tasksToAdd, addedTasks, msg) ==
        /\ LET nextTask == Head(tasksToAdd) 
               nextTaskId == Cardinality(TSCs.tasks) + Cardinality(addedTasks) + 1
               nextAddress == NextUnique + Cardinality(addedTasks)
-              newTaskList == addedTasks \union {AddFields(nextTask, msg.from, nextTaskId, nextAddress)} 
+              newTaskList == addedTasks \union 
+                             {AddFields(nextTask, msg.from, nextTaskId, nextAddress)} 
           IN PostTasks(Tail(tasksToAdd), newTaskList, msg) 
 
 ReceivePostTasks == 
@@ -133,7 +134,9 @@ CanParticipate(reputation, task) ==
     
 AddParticipant(taskSet, msg, taskId) == 
     LET newTaskList == {[t EXCEPT 
-        !.participants = IF t.taskId = taskId THEN t.participants \union {msg.from} ELSE t.participants,
+        !.participants = IF t.taskId = taskId 
+                         THEN t.participants \union {msg.from} 
+                         ELSE t.participants,
         !.state = IF t.taskId = taskId
                   THEN IF Cardinality(t.participants) + 1 = t.numParticipants
                        THEN "Unavailable"
@@ -339,5 +342,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 20:49:41 CET 2024 by jungc
+\* Last modified Sun Mar 03 21:19:21 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

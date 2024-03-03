@@ -70,12 +70,12 @@ Termination ==
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
-\*    /\ TSCAllTasksComplete
+    /\ TSCAllTasksComplete
     /\ TSCCancelsTasksWhenExpired
     /\ TSCRemovesMessageAfterUpdate
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 16:41:11 CET 2024 by jungc
+\* Last modified Sun Mar 03 21:00:14 CET 2024 by jungc
 \* Created Sat Mar 02 14:14:04 CET 2024 by jungc

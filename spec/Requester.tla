@@ -250,13 +250,14 @@ ReceiveKey(i) ==
     /\ \E msg \in Requesters[i].msgs : ReceiveKey_MessageFormat(i, msg)
     /\ LET msg == CHOOSE m \in Requesters[i].msgs : ReceiveKey_MessageFormat(i, m) 
            worker == CHOOSE w \in Requesters[i].unconfirmedWorkers : w = msg.from 
-       IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg},
-                                           ![i].unconfirmedWorkers = Requesters[i].unconfirmedWorkers \ {worker},
-                                           ![i].confirmedWorkers = Requesters[i].confirmedWorkers \union {worker},
-                                           ![i].state = IF Cardinality(Requesters[i].confirmedWorkers) + 1 = 
-                                                           Cardinality(Requesters[i].currentTask.participants)
-                                                        THEN "SEND_QUERY_HASHES"
-                                                        ELSE "SEND_KEY"]
+       IN Requesters' = [Requesters EXCEPT 
+            ![i].msgs = Requesters[i].msgs \ {msg},
+            ![i].unconfirmedWorkers = Requesters[i].unconfirmedWorkers \ {worker},
+            ![i].confirmedWorkers = Requesters[i].confirmedWorkers \union {worker},
+            ![i].state = IF Cardinality(Requesters[i].confirmedWorkers) + 1 = 
+                            Cardinality(Requesters[i].currentTask.participants)
+                         THEN "SEND_QUERY_HASHES"
+                         ELSE "SEND_KEY"]
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
 ReceiveKey_Timeout(i) == 
@@ -492,10 +493,12 @@ IsPastFinalTaskDeadline(i) ==
         Requesters[i].unpostedTasks[j].Td = TRUE   
     
 EarlyTermination_IsEnabled(i) == 
-    \/ /\ Requesters[i].state = "SEND_REGISTER"      \* Case 1: No tasks to submit prior to registration     
+    \* Case 1: No tasks to submit prior to registration
+    \/ /\ Requesters[i].state = "SEND_REGISTER"           
        /\ Len(Requesters[i].unpostedTasks) = 0 
+    \* Case 2: Registration/Post not finished before final Task deadline
     \/ /\ Len(Requesters[i].unpostedTasks) > 0
-       /\ IsPastFinalTaskDeadline(i)                 \* Case 2: Registration/Post not finished before final Task deadline
+       /\ IsPastFinalTaskDeadline(i)                 
        /\ Requesters[i].state \in {"RECV_REGISTER",
                                    "RECV_POST_TASKS", 
                                    "RECV_QUERY_TASKS"}
@@ -507,10 +510,12 @@ EarlyTermination(i) ==
         
 TaskTimeout_IsEnabled(i) == 
     /\ Requesters[i].currentTask # NULL
-    /\ \/ /\ Requesters[i].currentTask.Sd           \* Case 1: Keys not sent/ACKed before Submission deadline
+    \* Case 1: Keys not sent/ACKed before Submission deadline
+    /\ \/ /\ Requesters[i].currentTask.Sd           
           /\ Requesters[i].state \in {"SEND_KEY", 
-                                      "RECV_KEY"}  
-       \/ /\ Requesters[i].currentTask.Pd           \* Case 2: Evaluation not complete before Proving deadline
+                                      "RECV_KEY"}
+       \* Case 2: Evaluation not complete before Proving deadline  
+       \/ /\ Requesters[i].currentTask.Pd           
           /\ Requesters[i].state \in {"SEND_QUERY_HASHES",  
                                       "RECV_QUERY_HASHES",
                                       "SEND_QUERY_DATA",
@@ -572,5 +577,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 20:29:58 CET 2024 by jungc
+\* Last modified Sun Mar 03 21:21:00 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

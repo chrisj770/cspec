@@ -8,9 +8,9 @@ Init ==
                address |-> "",              \* Address/Pseudonym
                     pk |-> NULL,            \* Public key (obtained from USC during registration)
                     sk |-> NULL,            \* Private key (obtained from USC during registration)
-      unconfirmedTasks |-> {},              \* List of unconfirmed tasks (obtained from TSC during "RECV_QUERY_TASKS")
+          pendingTasks |-> {},              \* List of pending tasks (obtained from TSC during "RECV_QUERY_TASKS")
         confirmedTasks |-> {},              \* List of confirmed tasks (obtained via "CONFIRM_SUCCESS")
-        completedTasks |-> {},
+      unconfirmedTasks |-> {},              \* List of unconfirmed tasks (obtained via "CONFIRM_FAIL")
     currentConfirmTask |-> NULL,
            currentTask |-> NULL,            \* Current task 
            requesterSk |-> NULL,            \* Partial private key-share (obtained from Requester during "RECV_SEND_KEY")
@@ -57,7 +57,6 @@ NextTask(i, msg) ==
                      THEN "SEND_QUERY_TASKS"
                      ELSE "RECV_SEND_KEY", 
         ![i].confirmedTasks = Workers[i].confirmedTasks \ {nextTask},
-        ![i].completedTasks = Workers[i].completedTasks \union {Workers[i].currentTask},
         ![i].currentTask = nextTask, 
         ![i].requesterSk = NULL,
         ![i].currentHash = NULL, 
@@ -136,13 +135,15 @@ ReceiveQueryTasks_IsEnabled(i) ==
     /\ Workers[i].state = "RECV_QUERY_TASKS"
     
 ReceiveQueryTasks_Success(i, msg) == 
-    LET validTasks == {t \in msg.tasks : /\ t.state = "Available"
-                                         /\ t.taskId \notin {s.taskId : s \in Workers[i].completedTasks}}
+    LET validTasks == {t \in msg.tasks : 
+            /\ t.state = "Available"
+            /\ t.taskId \notin {s.taskId : s \in Workers[i].unconfirmedTasks}
+            /\ t.taskId \notin {s.taskId : s \in Workers[i].confirmedTasks}}
     IN IF Cardinality(validTasks) = 0 
        THEN Terminate(i, msg)
        ELSE Workers' = [Workers EXCEPT 
                     ![i].msgs = Workers[i].msgs \ {msg},
-                    ![i].unconfirmedTasks = validTasks,
+                    ![i].pendingTasks = validTasks,
                     ![i].state = "SEND_CONFIRM_TASK"]
     
 ReceiveQueryTasks(i) ==
@@ -167,18 +168,22 @@ ReceiveQueryTasks_Timeout(i) ==
 (***************************************************************************)
 SendConfirmTask_IsEnabled(i) == 
     /\ Workers[i].state = "SEND_CONFIRM_TASK" 
+    /\ \E t \in Workers[i].pendingTasks : /\ t \notin Workers[i].unconfirmedTasks
+                                          /\ t \notin Workers[i].confirmedTasks
 
 SendConfirmTask(i) == 
     /\ SendConfirmTask_IsEnabled(i)
-    /\ LET nextConfTask == CHOOSE tsc \in Workers[i].unconfirmedTasks :
-                           \A other \in Workers[i].unconfirmedTasks: 
-                           tsc # other => tsc.taskId < other.taskId
+    /\ LET nextConfTask == CHOOSE tsc \in Workers[i].pendingTasks :
+                           /\ \A other \in Workers[i].pendingTasks: 
+                               tsc # other => tsc.taskId < other.taskId
+                           /\ tsc \notin Workers[i].unconfirmedTasks
+                           /\ tsc \notin Workers[i].confirmedTasks
            request == [type |-> "CONFIRM_TASK", 
                        from |-> Workers[i].pk, 
                        task |-> nextConfTask.address]
        IN /\ SendTSCMessage(request)
           /\ Workers' = [Workers EXCEPT ![i].state = "RECV_CONFIRM_TASK",
-                                        ![i].currentConfirmTask = nextConfTask.address]
+                                        ![i].currentConfirmTask = nextConfTask]
     /\ UNCHANGED <<Requesters, USCs, Storage>>
 
 ReceiveConfirmTask_MessageFormat(i, msg) == 
@@ -187,37 +192,38 @@ ReceiveConfirmTask_MessageFormat(i, msg) ==
     /\ msg.type \in {"CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS", "NOT_REGISTERED"}
     /\ msg.type \in {"CANCELED", "COMPLETED", "CONFIRM_FAIL", "CONFIRM_SUCCESS"} => 
         /\ "task" \in DOMAIN msg
-        /\ msg.task = Workers[i].currentConfirmTask
+        /\ msg.task = Workers[i].currentConfirmTask.address
 
 ReceiveConfirmTask_IsEnabled(i) == 
     /\ Workers[i].state = "RECV_CONFIRM_TASK"
     
 ReceiveConfirmTask_Success(i, msg, task) == 
-    LET finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
+    LET finished == Cardinality(Workers[i].pendingTasks) = 1 
         newTasks == Workers[i].confirmedTasks \union {task} 
         firstTask == CHOOSE t \in newTasks: \A y \in newTasks: 
                             t.taskId # y.taskId => t.taskId < y.taskId
     IN Workers' = [Workers EXCEPT 
                    ![i].msgs = Workers[i].msgs \ {msg},
-                   ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId}, 
+                   ![i].pendingTasks = {t \in Workers[i].pendingTasks : t.taskId # task.taskId}, 
                    ![i].confirmedTasks = IF finished THEN newTasks \ {firstTask} ELSE newTasks,
                    ![i].currentTask = IF finished THEN firstTask ELSE NULL,
                    ![i].state = IF finished THEN "RECV_SEND_KEY" ELSE "SEND_CONFIRM_TASK", 
                    ![i].currentConfirmTask = NULL]
 
 ReceiveConfirmTask_Failed(i, msg, task) == 
-    LET finished == Cardinality(Workers[i].unconfirmedTasks) = 1 
+    LET finished == Cardinality(Workers[i].pendingTasks) = 1 
         firstTask == IF Cardinality(Workers[i].confirmedTasks) = 0 THEN NULL 
                      ELSE CHOOSE t \in Workers[i].confirmedTasks: \A y \in Workers[i].confirmedTasks: 
                                  t.taskId # y.taskId => t.taskId < y.taskId
     IN Workers' = [Workers EXCEPT 
                    ![i].msgs = Workers[i].msgs \ {msg},
-                   ![i].unconfirmedTasks = {t \in Workers[i].unconfirmedTasks : t.taskId # task.taskId},
+                   ![i].pendingTasks = {t \in Workers[i].pendingTasks : t.taskId # task.taskId},
                    ![i].confirmedTasks = IF finished THEN 
                                             IF Cardinality(Workers[i].confirmedTasks) > 0
                                             THEN Workers[i].confirmedTasks \ {firstTask}
                                             ELSE {} 
-                                         ELSE Workers[i].confirmedTasks,               
+                                         ELSE Workers[i].confirmedTasks,    
+                   ![i].unconfirmedTasks = Workers[i].unconfirmedTasks \union {task},          
                    ![i].currentTask = IF finished THEN firstTask ELSE NULL,
                    ![i].state = IF finished THEN
                                     IF Cardinality(Workers[i].confirmedTasks) > 0
@@ -231,11 +237,10 @@ ReceiveConfirmTask(i) ==
     /\ \E msg \in Workers[i].msgs : ReceiveConfirmTask_MessageFormat(i, msg)    
     /\ LET msg == CHOOSE m \in Workers[i].msgs : ReceiveConfirmTask_MessageFormat(i, m)
        IN \/ /\ msg.type # "NOT_REGISTERED"
-             /\ LET task == CHOOSE t \in Workers[i].unconfirmedTasks : msg.task = t.address
-                IN \/ /\ msg.type = "CONFIRM_SUCCESS" 
-                      /\ ReceiveConfirmTask_Success(i, msg, task)
-                   \/ /\ msg.type # "CONFIRM_SUCCESS"
-                      /\ ReceiveConfirmTask_Failed(i, msg, task)
+             /\ \/ /\ msg.type = "CONFIRM_SUCCESS" 
+                   /\ ReceiveConfirmTask_Success(i, msg, Workers[i].currentConfirmTask)
+                \/ /\ msg.type # "CONFIRM_SUCCESS"
+                   /\ ReceiveConfirmTask_Failed(i, msg, Workers[i].currentConfirmTask)
           \/ /\ msg.type = "NOT_REGISTERED"
              /\ Terminate(i, msg)
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
@@ -243,9 +248,7 @@ ReceiveConfirmTask(i) ==
 ReceiveConfirmTask_Timeout(i) == 
     /\ ReceiveConfirmTask_IsEnabled(i)
     /\ ~(\E msg \in Workers[i].msgs : ReceiveConfirmTask_MessageFormat(i, msg))
-\*    /\ LET task == CHOOSE t \in Workers[i].unconfirmedTasks : Workers[i].currentConfirmTask = t.address
-\*       IN ReceiveConfirmTask_Failed(i, NULL, task)
-    /\ Terminate(i, NULL)
+    /\ ReceiveConfirmTask_Failed(i, NULL, Workers[i].currentConfirmTask)
     /\ UNCHANGED <<Requesters, TSCs, USCs, Storage>>
     
 (***************************************************************************)
@@ -642,14 +645,16 @@ EarlyTermination(i) ==
 
 TaskTimeout_IsEnabled(i) == 
     /\ Workers[i].currentTask # NULL
-    /\ \/ /\ Workers[i].currentTask.Sd                  \* Case 1: Submission not complete before Submission deadline
+    \* Case 1: Submission not complete before Submission deadline
+    /\ \/ /\ Workers[i].currentTask.Sd
           /\ Workers[i].state \in {"RECV_SEND_KEY", 
                                    "COMPUTE",
                                    "SEND_SUBMIT_DATA", 
                                    "RECV_SUBMIT_DATA", 
                                    "SEND_SUBMIT_HASH", 
                                    "RECV_SUBMIT_HASH"}  
-       \/ /\ Workers[i].currentTask.Pd                 \* Case 2: Evaluation not complete before Proving deadline
+       \* Case 2: Evaluation not complete before Proving deadline
+       \/ /\ Workers[i].currentTask.Pd
           /\ Workers[i].state \in {"RECV_WEIGHTS",
                                    "SEND_QUERY_DATA", 
                                    "RECV_QUERY_DATA",
@@ -724,5 +729,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 20:29:08 CET 2024 by jungc
+\* Last modified Sun Mar 03 21:45:40 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

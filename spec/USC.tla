@@ -50,9 +50,11 @@ ReceiveRegister ==
        IN IF USCs.RegistrationDeadline
           THEN LET response == [type |-> "NOT_REGISTERED", from |-> USCs.pk] 
                IN /\ IF msg.userType = "WORKER"
-                     THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = Workers[msg.from].msgs \union {response}]
+                     THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
+                                         Workers[msg.from].msgs \union {response}]
                           /\ UNCHANGED <<Requesters>>
-                     ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = Requesters[msg.from].msgs \union {response}]
+                     ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
+                                            Requesters[msg.from].msgs \union {response}]
                           /\ UNCHANGED <<Workers>>
                   /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}] 
                   /\ UNCHANGED <<NextUnique>>
@@ -65,9 +67,11 @@ ReceiveRegister ==
                                         pk |-> [address |-> newKey, type |-> "public_key"], 
                                         sk |-> [address |-> newKey, type |-> "private_key"]]
                      IN IF msg.userType = "WORKER"
-                        THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = Workers[msg.from].msgs \union {response}]
+                        THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
+                                            Workers[msg.from].msgs \union {response}]
                              /\ UNCHANGED <<Requesters>>
-                        ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = Requesters[msg.from].msgs \union {response}]
+                        ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
+                                               Requesters[msg.from].msgs \union {response}]
                              /\ UNCHANGED <<Workers>> 
     /\ UNCHANGED <<TSCs>> 
 
@@ -91,5 +95,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 20:47:25 CET 2024 by jungc
+\* Last modified Sun Mar 03 21:08:43 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc
