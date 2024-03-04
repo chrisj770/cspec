@@ -1,6 +1,9 @@
 ------------------------- MODULE _Properties_Worker -------------------------
-EXTENDS Worker
+EXTENDS Worker, _Properties
 
+(***************************************************************************)
+(*                                 STATE                                   *)
+(***************************************************************************)
 AllowedStateTransitions == {
    [start |-> "INIT",               \* INIT: Initialize local variables
       end |-> {"SEND_REGISTER",     \* Transitions upon completing initialization
@@ -136,8 +139,166 @@ StateTransitions ==
        LET t == CHOOSE x \in AllowedStateTransitions : x.start = Workers[i].state 
        IN Workers'[i].state \in (t.end \union {t.start})
     ]_Workers
+    
+TaskQueryDeadlineUpdated(i) == 
+    Workers[i]'.TaskQueryDeadline # Workers[i].TaskQueryDeadline 
+    
+TaskDeadlineUpdated(i) == 
+    LET beforeTasks == (Workers[i].unconfirmedTasks \union 
+                        Workers[i].confirmedTasks \union
+                        Workers[i].pendingTasks)
+        before == IF Workers[i].currentTask # NULL
+                  THEN beforeTasks \union {Workers[i].currentTask}
+                  ELSE beforeTasks
+        afterTasks == (Workers[i]'.unconfirmedTasks \union 
+                       Workers[i]'.confirmedTasks \union
+                       Workers[i]'.pendingTasks)
+        after == IF Workers[i]'.currentTask # NULL
+                 THEN afterTasks \union {Workers[i]'.currentTask}
+                 ELSE afterTasks
+    IN \E t \in before : \A u \in after :
+       t.taskId = u.taskId => 
+        \/ t.Sd # u.Sd
+        \/ t.Pd # u.Pd
+        \/ t.Td # u.Pd 
+        
+(***************************************************************************)
+(* PROGRESS: If a worker progresses past any state that involves sending a *)
+(* message to TSC, then the TSC message queue must contain 1 new message.  *)
+(***************************************************************************)
+SendsMessageToTSC == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].state \in {"SEND_QUERY_TASKS", "SEND_CONFIRM_TASK", 
+                                   "SEND_SUBMIT_HASH", "SEND_SUBMIT_EVAL"}
+          /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
+                                            x.start = Workers[i].state
+             IN Workers[i]'.state \in (allowedNextState.end \ 
+                ({"TERMINATED", "SEND_QUERY_TASKS", allowedNextState.start}))
+       THEN Cardinality(TSCs'.msgs) = Cardinality(TSCs.msgs) + 1
+       ELSE TRUE
+    ]_Workers
+    
+(***************************************************************************)
+(* PROGRESS: If a worker progresses past any state that involves sending a *)
+(* message to USC, then the USC message queue must contain 1 new message.  *)
+(***************************************************************************)
+SendsMessageToUSC == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].state = "SEND_REGISTER"
+          /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
+                                            x.start = Workers[i].state
+             IN Workers[i]'.state \in (allowedNextState.end \ 
+                ({"TERMINATED", "SEND_QUERY_TASKS", allowedNextState.start}))
+       THEN Cardinality(USCs'.msgs) = Cardinality(USCs.msgs) + 1
+       ELSE TRUE
+    ]_Workers
 
-TerminatesIfNotRegistered == 
+(***************************************************************************)
+(* PROGRESS: If a worker progresses past any state that involves sending a *)
+(* message to STORAGE, then the STORAGE message queue must contain 1 new   *)
+(* message. Additionally, if the message has type "SUBMIT_DATA", it must   *)
+(* contain encrypted data that cannot be viewed by external actors.        *)
+(***************************************************************************)
+SendsMessageToStorage == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].state \in {"SEND_QUERY_DATA", "SEND_SUBMIT_DATA"}
+          /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
+                                         x.start = Workers[i].state
+             IN Workers[i]'.state \in (allowedNextState.end \ 
+                ({"TERMINATED", "SEND_QUERY_TASKS", allowedNextState.start}))
+       THEN /\ Cardinality(Storage'.msgs) = Cardinality(Storage.msgs) + 1
+            /\ LET msg == CHOOSE m \in Storage'.msgs : m.from = Workers[i].pk
+               IN \/ msg.type = "QUERY_DATA" 
+                  \/ /\ msg.type = "SUBMIT_DATA" 
+                     /\ IsEncrypted(msg.data)
+       ELSE TRUE
+    ]_Workers
+
+(***************************************************************************)
+(* PROGRESS: If a worker is processing a "currentTask" for which the       *)
+(* Submission/Proving deadline has passed, the worker must proceed to the  *)
+(* next task (or re-query tasks) upon its next state update.               *)
+(***************************************************************************)
+TimeoutTaskIfDeadlinePassed == 
+    [][\A i \in 1..NumWorkers:
+       IF /\ Workers[i].currentTask # NULL
+          \* Condition 1a: Submission deadline passed before submission of data hash
+          /\ \/ /\ Workers[i].currentTask.Sd 
+                /\ Workers[i].state \in {"RECV_SEND_KEY", "COMPUTE", "SEND_SUBMIT_DATA", 
+                                         "RECV_SUBMIT_DATA", "SEND_SUBMIT_HASH",
+                                         "RECV_SUBMIT_HASH"}
+             \* Condition 1b: Proving deadline passed before submission of evaluation
+             \/ /\ Workers[i].currentTask.Pd
+                /\ Workers[i].state \in {"RECV_WEIGHTS", "SEND_QUERY_DATA", "RECV_QUERY_DATA", 
+                                         "REQUEST_DATA", "RECV_DATA", "VERIFY", 
+                                         "SEND_SUBMIT_EVAL", "RECV_SUBMIT_EVAL"}
+          \* Condition 2: Worker state must be updated
+          /\ Workers[i]'.state # Workers[i].state
+       THEN 
+            \* Case 1: If worker has another task, the current task should be incremented
+            \/ /\ Workers[i].confirmedTasks # {}
+               /\ Workers[i]'.state = "RECV_SEND_KEY"
+               /\ Workers[i]'.currentTask = CHOOSE x \in Workers[i].confirmedTasks :
+                                            \A y \in Workers[i].confirmedTasks: 
+                                            x.taskId # y.taskId => x.taskId < y.taskId
+            \* Case 2: If worker has no additional tasks, it should re-query TSC for tasks
+            \/ /\ Workers[i].confirmedTasks = {}
+               /\ Workers[i]'.state = "SEND_QUERY_TASKS"
+               /\ Workers[i]'.currentTask = NULL
+            \* Case 3: Worker can crash at any point
+            \/ Workers[i]'.state = "TERMINATED"
+       ELSE TRUE
+    ]_Workers
+    
+(***************************************************************************)
+(* SECURITY: During key distribution, if a worker receives a message from  *)
+(* a Requester containing a keyshare, the contents must be encrypted with  *)
+(* a public key for which ONLY the worker's private key can be used for    *)
+(* decryption.                                                             *)
+(***************************************************************************)
+ReceivesEncryptedKeyshares == 
+    [][\A i \in 1..NumWorkers : 
+       IF /\ Workers[i].currentTask # NULL
+          /\ Workers[i].state = "RECV_SEND_KEY"
+          /\ \E m \in Workers[i].msgs : /\ m.from = Workers[i].currentTask.owner
+                                        /\ m.type = "SEND_KEY"
+       THEN 
+            LET msg == CHOOSE m \in Workers[i].msgs : 
+                        /\ m.from = Workers[i].currentTask.owner
+                        /\ m.type = "SEND_KEY"
+            IN /\ IsEncrypted(msg.keyshare)
+               /\ msg.keyshare.encryptionKey.address = Workers[i].pk.address
+               /\ msg.keyshare.encryptionKey.type = Workers[i].pk.type
+       ELSE TRUE
+    ]_Workers
+
+(***************************************************************************)
+(* SECURITY: During sensory data submission, every message sent to STORAGE *)
+(* must contain encrypted data for which the Requester's public key was    *)
+(* used for encryption, corresponding to the private key "share" received. *)
+(***************************************************************************)
+SendsEncryptedSensoryData ==
+    [][\A i \in 1..NumWorkers : 
+       IF /\ Workers[i].currentTask # NULL
+          /\ Workers[i].state = "SEND_SUBMIT_DATA"
+          /\ Workers[i]'.state = "RECV_SUBMIT_DATA"
+          /\ MessageAdded(Storage.msgs, Storage'.msgs)
+       THEN 
+            LET msg == CHOOSE m \in Storage'.msgs : 
+                       /\ m.from = Workers[i].pk
+                       /\ m.type = "SUBMIT_DATA"
+            IN /\ IsEncrypted(msg.data) 
+               /\ msg.data.encryptionKey.address = Workers[i].requesterSk.address
+               /\ msg.data.encryptionKey.type = "public_key" 
+               /\ msg.data.encryptionKey.share = Workers[i].requesterSk.share
+       ELSE TRUE
+    ]_Workers
+
+(***************************************************************************)
+(* TERMINATION: If a worker receives a message with type "NOT_REGISTERED", *)
+(* it must terminate upon consuming the message and updating its state.    *)
+(***************************************************************************)
+TerminateIfNotRegistered == 
     [][\A i \in 1..NumWorkers:
        IF \E msg \in Workers[i].msgs : msg.type = "NOT_REGISTERED" 
        THEN LET msg == CHOOSE m \in Workers[i].msgs : m.type = "NOT_REGISTERED"
@@ -147,62 +308,25 @@ TerminatesIfNotRegistered ==
        ELSE TRUE
     ]_Workers
 
-SendsMessagesToUSC == 
-    [][\A i \in 1..NumWorkers:
-       IF /\ Workers[i].state = "SEND_REGISTER"
-          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = "SEND_REGISTER")
-             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
-       THEN Cardinality(USCs'.msgs) = Cardinality(USCs.msgs) + 1
-       ELSE TRUE
-    ]_Workers
-    
-SendsMessagesToTSC == 
-    [][\A i \in 1..NumWorkers:
-       IF /\ Workers[i].state \in 
-                {"SEND_QUERY_TASKS", "SEND_CONFIRM_TASK", "SEND_SUBMIT_HASH", "SEND_SUBMIT_EVAL"}
-          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Workers[i].state)
-             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
-       THEN Cardinality(TSCs'.msgs) = Cardinality(TSCs.msgs) + 1
-       ELSE TRUE
-    ]_Workers
-
-SendsMessagesToStorage == 
-    [][\A i \in 1..NumWorkers:
-       IF /\ Workers[i].state \in {"SEND_QUERY_DATA", "SEND_SUBMIT_DATA"}
-          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Workers[i].state)
-             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
-       THEN /\ Cardinality(Storage'.msgs) = Cardinality(Storage.msgs) + 1
-            /\ LET msg == CHOOSE m \in Storage'.msgs : m.from = Workers[i].pk
-               IN \/ msg.type = "QUERY_DATA" 
-                  \/ /\ msg.type = "SUBMIT_DATA" 
-                     /\ IsEncrypted(msg.data)
-       ELSE TRUE
-    ]_Workers
-    
-SendsMessagesToWorkers == 
-    [][\A i \in 1..NumWorkers:
-       IF /\ Workers[i].state = "REQUEST_DATA"
-          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = "REQUEST_DATA")
-             IN Workers[i]'.state \in (match.end \ ({"TERMINATED", "SEND_QUERY_TASKS", match.start}))
-       THEN \E j \in 1..NumWorkers : Cardinality(Workers[j]'.msgs) = Cardinality(Workers[j].msgs) + 1
-       ELSE TRUE
-    ]_Workers
-    
+(***************************************************************************)
+(*  TERMINATION: All workers must terminate by conclusion of the process.  *)
+(***************************************************************************)
 Termination == 
     <>[](\A w \in 1..NumWorkers: Workers[w].state = "TERMINATED")
 
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
-    /\ TerminatesIfNotRegistered
-\*    /\ SendsMessagesToUSC
-\*    /\ SendsMessagesToTSC
-\*   /\ SendsMessagesToStorage
-\*   /\ SendsMessagesToWorkers
+    /\ SendsMessageToTSC
+    /\ SendsMessageToUSC
+    /\ SendsMessageToStorage
+    /\ TimeoutTaskIfDeadlinePassed
+    /\ ReceivesEncryptedKeyshares
+    /\ SendsEncryptedSensoryData
+    /\ TerminateIfNotRegistered
     /\ Termination
-
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 13:56:36 CET 2024 by jungc
+\* Last modified Mon Mar 04 10:41:26 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

@@ -1,5 +1,5 @@
 ----------------------- MODULE _Properties_Requester -----------------------
-EXTENDS Requester
+EXTENDS Requester, _Properties
 
 AllowedStateTransitions == {
    [start |-> "INIT",               \* INIT: Initialize local variables
@@ -156,5 +156,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 13:56:43 CET 2024 by jungc
+\* Last modified Mon Mar 04 10:40:42 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

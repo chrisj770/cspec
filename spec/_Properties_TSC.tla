@@ -1,5 +1,5 @@
 -------------------------- MODULE _Properties_TSC --------------------------
-EXTENDS TSC
+EXTENDS TSC, _Properties
 
 AllowedStateTransitions == {
     [start |-> "WORKING",
@@ -23,7 +23,7 @@ StateTransitions ==
         IN TSCs'.state \in (t.end \union {t.start})
     ]_TSCs
            
-TaskDeadlinesUpdated == 
+TaskDeadlineUpdated == 
     \E t1 \in TSCs'.tasks : \A t2 \in TSCs.tasks: t1.taskId = t2.taskId =>
         \/ t1.Sd # t2.Sd
         \/ t1.Pd # t2.Pd
@@ -32,22 +32,15 @@ TaskDeadlinesUpdated ==
 TaskStateUpdated == 
     \E t1 \in TSCs'.tasks : \A t2 \in TSCs.tasks: t1.taskId = t2.taskId =>
         t1.state # t2.state 
-        
-MessageAdded == 
-    \E m \in TSCs'.msgs : m \notin TSCs.msgs
     
-MessageRemoved == 
-    \E m \in TSCs.msgs : m \notin TSCs'.msgs
-    
-
 TSCAllTasksComplete == 
     <>[](\A t \in TSCs.tasks : t.state \in {"Canceled", "Completed"})
 
 TSCCancelsTasksWhenExpired == 
     [][
         IF /\ \E t \in TSCs.tasks : TaskExpired(t)
-           /\ ~TaskDeadlinesUpdated
-           /\ ~MessageAdded
+           /\ ~TaskDeadlineUpdated
+           /\ ~MessageAdded(TSCs.msgs, TSCs'.msgs)
         THEN LET task == CHOOSE t \in TSCs.tasks : TaskExpired(t)
                  updatedTask == CHOOSE t \in TSCs'.tasks : t.taskId = task.taskId
              IN updatedTask.state = "Canceled"
@@ -57,9 +50,9 @@ TSCCancelsTasksWhenExpired ==
 TSCRemovesMessageAfterUpdate == 
     [][
        IF /\ TSCs'.tasks # TSCs.tasks 
-          /\ ~TaskDeadlinesUpdated 
+          /\ ~TaskDeadlineUpdated 
           /\ ~TaskStateUpdated
-       THEN MessageRemoved
+       THEN MessageRemoved(TSCs.msgs, TSCs'.msgs)
        ELSE TRUE
     ]_TSCs
 
@@ -77,5 +70,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 21:00:14 CET 2024 by jungc
+\* Last modified Mon Mar 04 09:21:36 CET 2024 by jungc
 \* Created Sat Mar 02 14:14:04 CET 2024 by jungc
