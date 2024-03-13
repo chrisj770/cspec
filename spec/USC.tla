@@ -43,36 +43,42 @@ ReceiveRegister_MessageFormat(msg) ==
 ReceiveRegister_IsEnabled == 
     /\ USCs.state = "WORKING"
     
+AcceptRegister(msg) == 
+    LET newKey == ToString(NextUnique) 
+    IN /\ Register(newKey, msg)
+       /\ NextUnique' = NextUnique + 1
+       /\ LET response == [type |-> "REGISTERED", 
+                           from |-> USCs.pk, 
+                            key |-> newKey, 
+                             pk |-> [address |-> newKey, type |-> "public_key"], 
+                             sk |-> [address |-> newKey, type |-> "private_key"]]
+          IN IF msg.userType = "WORKER"
+             THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
+                                 Workers[msg.from].msgs \union {response}]
+                  /\ UNCHANGED <<Requesters>>
+             ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
+                                    Requesters[msg.from].msgs \union {response}]
+                  /\ UNCHANGED <<Workers>>     
+        
+RejectRegister(msg) == 
+    LET response == [type |-> "NOT_REGISTERED", from |-> USCs.pk] 
+    IN /\ IF msg.userType = "WORKER"
+          THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
+                              Workers[msg.from].msgs \union {response}]
+               /\ UNCHANGED <<Requesters>>
+          ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
+                                 Requesters[msg.from].msgs \union {response}]
+               /\ UNCHANGED <<Workers>>
+       /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}] 
+       /\ UNCHANGED <<NextUnique>>
+    
 ReceiveRegister == 
     /\ ReceiveRegister_IsEnabled
     /\ \E msg \in USCs.msgs : ReceiveRegister_MessageFormat(msg)
     /\ LET msg == CHOOSE m \in USCs.msgs : ReceiveRegister_MessageFormat(m) 
-       IN IF USCs.RegistrationDeadline
-          THEN LET response == [type |-> "NOT_REGISTERED", from |-> USCs.pk] 
-               IN /\ IF msg.userType = "WORKER"
-                     THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
-                                         Workers[msg.from].msgs \union {response}]
-                          /\ UNCHANGED <<Requesters>>
-                     ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
-                                            Requesters[msg.from].msgs \union {response}]
-                          /\ UNCHANGED <<Workers>>
-                  /\ USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}] 
-                  /\ UNCHANGED <<NextUnique>>
-          ELSE LET newKey == ToString(NextUnique) 
-               IN /\ Register(newKey, msg)
-                  /\ NextUnique' = NextUnique + 1
-                  /\ LET response == [type |-> "REGISTERED", 
-                                      from |-> USCs.pk, 
-                                       key |-> newKey, 
-                                        pk |-> [address |-> newKey, type |-> "public_key"], 
-                                        sk |-> [address |-> newKey, type |-> "private_key"]]
-                     IN IF msg.userType = "WORKER"
-                        THEN /\ Workers' = [Workers EXCEPT ![msg.from].msgs = 
-                                            Workers[msg.from].msgs \union {response}]
-                             /\ UNCHANGED <<Requesters>>
-                        ELSE /\ Requesters' = [Requesters EXCEPT ![msg.from].msgs = 
-                                               Requesters[msg.from].msgs \union {response}]
-                             /\ UNCHANGED <<Workers>> 
+       IN IF ~USCs.RegistrationDeadline
+          THEN AcceptRegister(msg)
+          ELSE RejectRegister(msg)
     /\ UNCHANGED <<TSCs>> 
 
 (***************************************************************************)
@@ -95,5 +101,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:20:43 CET 2024 by jungc
+\* Last modified Wed Mar 13 12:42:14 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

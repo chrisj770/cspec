@@ -14,6 +14,9 @@ KeyshareOK(k) ==
     /\ KeyOK(k)
     /\ "share" \in DOMAIN k
     /\ k.share \in 0..NextUnique
+
+HashOK(h) == 
+    h \in {ToString(s) : s \in 1..NextUnique}
     
 WeightsOK(w) == 
     TRUE
@@ -42,7 +45,7 @@ TaskOK(t) ==
     /\ \A p \in t.participants : KeyOK(p)
     /\ t.globalReputationThreshold \in Int
     /\ t.expertiseReputationThreshold \in Int
-    /\ \A h \in t.hashes : h \in {ToString(a) : a \in 0..NextUnique}
+    /\ \A h \in t.hashes : HashOK(h)
     /\ \/ t.requesterWeights = NULL 
        \/ WeightsOK(t.requesterWeights)
     /\ \A w \in t.workerWeights : WeightsOK(w)
@@ -62,5 +65,5 @@ MessageRemoved(before, after) ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:36:38 CET 2024 by jungc
+\* Last modified Wed Mar 13 12:57:45 CET 2024 by jungc
 \* Created Sat Mar 02 14:49:49 CET 2024 by jungc

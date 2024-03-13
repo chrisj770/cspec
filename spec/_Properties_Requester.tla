@@ -116,7 +116,7 @@ TypeOK == \A i \in 1..NumWorkers : LET r == Requesters[i] IN
     /\ r.currentTask = NULL \/ TaskOK(r.currentTask)
     /\ \A w \in r.unconfirmedWorkers : KeyOK(w)
     /\ \A w \in r.confirmedWorkers : KeyOK(w)
-    /\ \A h \in r.submittedHashes : h \in {ToString(a) : a \in 0..NextUnique}
+    /\ \A h \in r.submittedHashes : HashOK(h)
         
 (***************************************************************************)
 (*                                PROPERTIES                               *)
@@ -171,5 +171,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:29:18 CET 2024 by jungc
+\* Last modified Wed Mar 13 12:58:58 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

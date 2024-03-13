@@ -43,13 +43,26 @@ TypeOK ==
 (***************************************************************************)
 (*                                PROPERTIES                               *)
 (***************************************************************************)
+AllUsersUnique == 
+    [][\A a \in USCs.users : \A b \in USCs.users : 
+          a.address # b.address =>  
+          a.pk # b.pk /\ a.userType # b.userType
+    ]_USCs
+        
+NoRegistrationsAfterDeadline == 
+    [][USCs.RegistrationDeadline => 
+       Cardinality(USCs'.users) = Cardinality(USCs.users)
+    ]_USCs
+
 Termination == 
     <>[](USCs.state = "WORKING")
 
 Properties == 
+    /\ AllUsersUnique 
+    /\ NoRegistrationsAfterDeadline
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:25:25 CET 2024 by jungc
+\* Last modified Wed Mar 13 12:56:14 CET 2024 by jungc
 \* Created Wed Mar 13 10:00:37 CET 2024 by jungc

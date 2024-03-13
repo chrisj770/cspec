@@ -149,7 +149,7 @@ TypeOK == \A i \in 1..NumWorkers : LET w == Workers[i] IN
     /\ \A t \in w.unconfirmedTasks : WorkerTaskOK(t)
     /\ w.currentConfirmTask = NULL \/ WorkerTaskOK(w.currentConfirmTask) 
     /\ w.currentTask = NULL \/ WorkerTaskOK(w.currentTask) 
-    /\ w.currentHash = NULL \/ w.currentHash \in {ToString(h) : h \in 0..NextUnique}
+    /\ w.currentHash = NULL \/ HashOK(w.currentHash)
     /\ \A p \in w.participantsSent : KeyOK(p) 
     /\ \A p \in w.participantsRcvd : KeyOK(p)
     /\ w.TaskQueryDeadline \in {TRUE, FALSE}  
@@ -345,5 +345,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 09:46:18 CET 2024 by jungc
+\* Last modified Wed Mar 13 12:58:52 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc
