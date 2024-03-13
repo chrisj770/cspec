@@ -1,6 +1,9 @@
 ------------------------------- MODULE Worker -------------------------------
 EXTENDS FiniteSets, Sequences, Common, TLC, Integers
-                      
+
+(***************************************************************************)
+(*                              INITIALIZATION                             *)
+(***************************************************************************)
 Init ==
     Workers = [w \in 1..NumWorkers |-> [
                   msgs |-> {},              \* Message queue 
@@ -21,7 +24,6 @@ Init ==
          submittedData |-> {},              \* Set of data submitted by all workers (obtained from other workers during "VERIFY")
                weights |-> {},
      TaskQueryDeadline |-> FALSE]] 
-
 
 CATDAlgorithm(i) == 
     {[participant |-> w.address, weight |-> "placeholder"] :
@@ -729,5 +731,5 @@ Next ==
         
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 21:45:40 CET 2024 by jungc
+\* Last modified Wed Mar 13 10:21:05 CET 2024 by jungc
 \* Created Thu Feb 22 08:43:47 CET 2024 by jungc

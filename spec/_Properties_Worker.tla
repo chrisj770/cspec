@@ -2,7 +2,7 @@
 EXTENDS Worker, _Properties
 
 (***************************************************************************)
-(*                                 STATE                                   *)
+(*                             STATE CONSISTENCY                           *)
 (***************************************************************************)
 AllowedStateTransitions == {
    [start |-> "INIT",               \* INIT: Initialize local variables
@@ -124,10 +124,6 @@ AllowedStateTransitions == {
    [start |-> "TERMINATED",         \* TERMINATED: No further operations possible
       end |-> {}]}                  \* Does not transition
       
-TypeOK ==
-    \A w \in 1..NumWorkers : 
-        /\ Workers[w].state \in {s.start : s \in AllowedStateTransitions}
-      
 StateConsistency == 
     [][\A i \in 1..NumWorkers: 
         Workers[i].state \in 
@@ -139,7 +135,28 @@ StateTransitions ==
        LET t == CHOOSE x \in AllowedStateTransitions : x.start = Workers[i].state 
        IN Workers'[i].state \in (t.end \union {t.start})
     ]_Workers
+
+(***************************************************************************)
+(*                             TYPE CONSISTENCY                            *)
+(***************************************************************************)
+TypeOK == \A i \in 1..NumWorkers : LET w == Workers[i] IN
+    /\ w.state \in {s.start : s \in AllowedStateTransitions}
+    /\ w.pk = NULL \/ KeyOK(w.pk)
+    /\ w.sk = NULL \/ KeyOK(w.sk)
+    /\ w.requesterSk = NULL \/ KeyshareOK(w.requesterSk)
+    /\ \A t \in w.pendingTasks : WorkerTaskOK(t)
+    /\ \A t \in w.confirmedTasks : WorkerTaskOK(t)
+    /\ \A t \in w.unconfirmedTasks : WorkerTaskOK(t)
+    /\ w.currentConfirmTask = NULL \/ WorkerTaskOK(w.currentConfirmTask) 
+    /\ w.currentTask = NULL \/ WorkerTaskOK(w.currentTask) 
+    /\ w.currentHash = NULL \/ w.currentHash \in {ToString(h) : h \in 0..NextUnique}
+    /\ \A p \in w.participantsSent : KeyOK(p) 
+    /\ \A p \in w.participantsRcvd : KeyOK(p)
+    /\ w.TaskQueryDeadline \in {TRUE, FALSE}  
     
+(***************************************************************************)
+(*                                PROPERTIES                               *)
+(***************************************************************************)
 TaskQueryDeadlineUpdated(i) == 
     Workers[i]'.TaskQueryDeadline # Workers[i].TaskQueryDeadline 
     
@@ -328,5 +345,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Mar 04 10:41:26 CET 2024 by jungc
+\* Last modified Wed Mar 13 09:46:18 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

@@ -1,30 +1,50 @@
 ------------------------------- MODULE Cspec -------------------------------
 EXTENDS FiniteSets, Common
 
-CONSTANT Tasks
-
 vars == <<Workers, Requesters, USCs, TSCs, NextUnique, Storage>>
 
 Requester == INSTANCE Requester
 Worker == INSTANCE Worker
-Blockchain == INSTANCE Blockchain
+TSC == INSTANCE TSC
+USC == INSTANCE USC
 Database == INSTANCE Database
 
 RequesterProperties == INSTANCE _Properties_Requester
 WorkerProperties == INSTANCE _Properties_Worker
 TSCProperties == INSTANCE _Properties_TSC
+USCProperties == INSTANCE _Properties_USC
+DatabaseProperties == INSTANCE _Properties_Database
 
-TypeOK == /\ WorkerProperties!TypeOK
-          /\ RequesterProperties!TypeOK
-          /\ Blockchain!TypeOK
-          /\ Database!TypeOK
-    
+(***************************************************************************)
+(*                              INITIALIZATION                             *)
+(***************************************************************************)
 Init == /\ Worker!Init
         /\ Requester!Init
-        /\ Blockchain!Init
+        /\ TSC!Init
+        /\ USC!Init
         /\ Database!Init
         /\ NextUnique = 1
+
+(***************************************************************************)
+(*                         INVARIANTS AND PROPERTIES                       *)
+(***************************************************************************)
+TypeOK == 
+    /\ WorkerProperties!TypeOK
+    /\ RequesterProperties!TypeOK
+    /\ TSCProperties!TypeOK
+    /\ USCProperties!TypeOK
+    /\ DatabaseProperties!TypeOK
+          
+Properties == 
+    /\ RequesterProperties!Properties
+    /\ WorkerProperties!Properties
+    /\ TSCProperties!Properties
+    /\ USCProperties!Properties
+    /\ DatabaseProperties!Properties
         
+(***************************************************************************)
+(*                         GLOBAL DEADLINE TRIGGERS                        *)
+(***************************************************************************)
 TriggerRegistrationDeadline ==
     /\ ~USCs.RegistrationDeadline
     /\ USCs' = [USCs EXCEPT !.RegistrationDeadline = TRUE]
@@ -75,18 +95,15 @@ TriggerNextTaskDeadline ==
                 !.currentTask = UpdateTask(Workers[i].currentTask, taskId, Sd, Pd, Td),
                 !.msgs = UpdateMessages(Workers[i].msgs, taskId, Sd, Pd, Td)]]
     /\ UNCHANGED <<USCs, Storage, NextUnique>>
-    
-Terminated == 
-    /\ \A i \in 1..NumWorkers : Workers[i].state = "TERMINATED"
-    /\ \A j \in 1..NumRequesters : Requesters[j].state = "TERMINATED"
-    /\ TSCs.state = "TERMINATED" 
-    /\ USCs.state = "TERMINATED"
-    /\ Storage.state = "TERMINATED"
-        
+
+(***************************************************************************)
+(*                   STATE TRANSITION AND SPEC DEFINITIONS                 *)
+(***************************************************************************)        
 Next == \/ /\ \/ Worker!Next
               \/ Requester!Next
            /\ UNCHANGED <<NextUnique>>
-        \/ /\ Blockchain!Next
+        \/ /\ \/ TSC!Next
+              \/ USC!Next
            /\ UNCHANGED <<Storage>>
         \/ /\ Database!Next
            /\ UNCHANGED <<TSCs, USCs>>
@@ -97,12 +114,7 @@ Next == \/ /\ \/ Worker!Next
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
-Properties == 
-    /\ RequesterProperties!Properties
-    /\ WorkerProperties!Properties
-    /\ TSCProperties!Properties
-
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 21:41:53 CET 2024 by jungc
+\* Last modified Wed Mar 13 10:13:23 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc

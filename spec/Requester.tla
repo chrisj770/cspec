@@ -1,8 +1,6 @@
 ----------------------------- MODULE Requester -----------------------------
 EXTENDS FiniteSets, Sequences, TLC, Common
 
-CONSTANT Tasks
-
 RequiredTaskFields == {
     "id",               \* Unique identifier (starting at 1..)
     "Sd",               \* Submission deadline (time in steps)
@@ -10,6 +8,9 @@ RequiredTaskFields == {
     "Td",               \* Task deadline (time, in steps)
     "numParticipants"}  \* Required number of participants
 
+(***************************************************************************)
+(*                              INITIALIZATION                             *)
+(***************************************************************************)
 Init == 
     Requesters = [r \in 1..NumRequesters |-> [
                     msgs |-> {}, 
@@ -577,5 +578,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 21:21:00 CET 2024 by jungc
+\* Last modified Wed Mar 13 10:20:54 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc

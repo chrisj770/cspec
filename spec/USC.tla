@@ -1,14 +1,14 @@
 -------------------------------- MODULE USC --------------------------------
 EXTENDS Integers, Sequences, FiniteSets, TLC, Common 
 
-TypeOK == TRUE
-
+(***************************************************************************)
+(*                              INITIALIZATION                             *)
+(***************************************************************************)
 Init == USCs = [msgs |-> {},
                   pk |-> [address |-> "USC", type |-> "public_key"],
                users |-> {},
                state |-> "WORKING", 
 RegistrationDeadline |-> FALSE]
-
 
 IsWorker(public_key) == 
     \E usc \in USCs.users: /\ usc.pk = public_key
@@ -95,5 +95,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 21:08:43 CET 2024 by jungc
+\* Last modified Wed Mar 13 10:20:43 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

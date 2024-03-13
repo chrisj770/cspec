@@ -1,6 +1,9 @@
 ----------------------- MODULE _Properties_Requester -----------------------
 EXTENDS Requester, _Properties
 
+(***************************************************************************)
+(*                             STATE CONSISTENCY                           *)
+(***************************************************************************)
 AllowedStateTransitions == {
    [start |-> "INIT",               \* INIT: Initialize local variables
       end |-> {"SEND_REGISTER",     \* Transitions upon completing initialization
@@ -90,10 +93,6 @@ AllowedStateTransitions == {
    [start |-> "TERMINATED",         \* TERMINATED: No further operations possible
       end |-> {}]}                  \* Does not transition 
       
-TypeOK ==
-    \A r \in 1..NumRequesters : 
-        /\ Requesters[r].state \in {s.start : s \in AllowedStateTransitions}
-
 StateConsistency == 
     [][\A i \in 1..NumRequesters: 
         Requesters[i].state \in 
@@ -105,7 +104,23 @@ StateTransitions ==
        LET t == CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state 
        IN Requesters'[i].state \in (t.end \union {t.start})
     ]_Requesters
-      
+    
+(***************************************************************************)
+(*                             TYPE CONSISTENCY                            *)
+(***************************************************************************)    
+TypeOK == \A i \in 1..NumWorkers : LET r == Requesters[i] IN 
+    /\ r.state \in {s.start : s \in AllowedStateTransitions}
+    /\ r.pk = NULL \/ KeyOK(r.pk) 
+    /\ r.sk = NULL \/ KeyOK(r.sk) 
+    /\ \A t \in r.tasks : TaskOK(t)
+    /\ r.currentTask = NULL \/ TaskOK(r.currentTask)
+    /\ \A w \in r.unconfirmedWorkers : KeyOK(w)
+    /\ \A w \in r.confirmedWorkers : KeyOK(w)
+    /\ \A h \in r.submittedHashes : h \in {ToString(a) : a \in 0..NextUnique}
+        
+(***************************************************************************)
+(*                                PROPERTIES                               *)
+(***************************************************************************)      
 TerminatesIfNotRegistered == 
     [][\A i \in 1..NumRequesters:
        IF \E msg \in Requesters[i].msgs : msg.type = "NOT_REGISTERED" 
@@ -156,5 +171,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Mar 04 10:40:42 CET 2024 by jungc
+\* Last modified Wed Mar 13 10:29:18 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

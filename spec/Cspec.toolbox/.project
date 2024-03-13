@@ -16,11 +16,6 @@
 	</natures>
 	<linkedResources>
 		<link>
-			<name>Blockchain.tla</name>
-			<type>1</type>
-			<locationURI>PARENT-1-PROJECT_LOC/Blockchain.tla</locationURI>
-		</link>
-		<link>
 			<name>Common.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/Common.tla</locationURI>
@@ -61,6 +56,11 @@
 			<locationURI>PARENT-1-PROJECT_LOC/_Properties.tla</locationURI>
 		</link>
 		<link>
+			<name>_Properties_Database.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/_Properties_Database.tla</locationURI>
+		</link>
+		<link>
 			<name>_Properties_Requester.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/_Properties_Requester.tla</locationURI>
@@ -69,6 +69,11 @@
 			<name>_Properties_TSC.tla</name>
 			<type>1</type>
 			<locationURI>PARENT-1-PROJECT_LOC/_Properties_TSC.tla</locationURI>
+		</link>
+		<link>
+			<name>_Properties_USC.tla</name>
+			<type>1</type>
+			<locationURI>PARENT-1-PROJECT_LOC/_Properties_USC.tla</locationURI>
 		</link>
 		<link>
 			<name>_Properties_Worker.tla</name>

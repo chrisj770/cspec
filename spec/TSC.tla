@@ -3,8 +3,9 @@ EXTENDS FiniteSets, Sequences, Integers, TLC, Common
 
 USC == INSTANCE USC
 
-TypeOK == TRUE
-
+(***************************************************************************)
+(*                              INITIALIZATION                             *)
+(***************************************************************************)
 Init == TSCs = [state |-> "WORKING",
                  msgs |-> {},
                    pk |-> [address |-> "TSC", type |-> "public_key"],
@@ -26,15 +27,15 @@ AddFields(struct, owner, taskId, address) ==
                requesterWeights |-> NULL,
                   workerWeights |-> {}]
     
-GetWorkerTSC(t) == [Sd |-> t.Sd, 
-                    Pd |-> t.Pd, 
-                    Td |-> t.Td, 
-               address |-> t.address, 
-                taskId |-> t.taskId, 
-                 owner |-> t.owner, 
-       numParticipants |-> t.numParticipants, 
-              category |-> t.category,
-                 state |-> t.state] 
+GetWorkerTask(t) == [Sd |-> t.Sd, 
+                     Pd |-> t.Pd, 
+                     Td |-> t.Td, 
+                address |-> t.address, 
+                 taskId |-> t.taskId, 
+                  owner |-> t.owner, 
+        numParticipants |-> t.numParticipants, 
+               category |-> t.category,
+                  state |-> t.state] 
                          
 TaskExpired(t) == 
     \/ /\ t.Sd
@@ -102,7 +103,7 @@ ReceiveQueryTasks_SendTasks(tasks, msg) ==
     LET matchingTSCs == IF USC!IsWorker(msg.from) THEN tasks 
                         ELSE {t \in tasks : t.owner = msg.owner} 
         tscData == IF USC!IsWorker(msg.from) 
-                   THEN {GetWorkerTSC(t) : t \in matchingTSCs}
+                   THEN {GetWorkerTask(t) : t \in matchingTSCs}
                    ELSE matchingTSCs
         response == [type |-> "TASKS",  
                      from |-> TSCs.pk, 
@@ -342,5 +343,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 21:19:21 CET 2024 by jungc
+\* Last modified Wed Mar 13 10:21:26 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

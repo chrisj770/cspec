@@ -1,8 +1,9 @@
 ------------------------------ MODULE Database ------------------------------
 EXTENDS Common, TLC
 
-TypeOK == TRUE
-
+(***************************************************************************)
+(*                              INITIALIZATION                             *)
+(***************************************************************************)
 Init == Storage = [msgs |-> {}, 
                    data |-> {},
                      pk |-> [address |-> "STORAGE", type |-> "public_key"], 
@@ -68,5 +69,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Mar 03 20:34:15 CET 2024 by jungc
+\* Last modified Wed Mar 13 10:20:37 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc
