@@ -120,17 +120,47 @@ TypeOK == \A i \in 1..NumWorkers : LET r == Requesters[i] IN
         
 (***************************************************************************)
 (*                                PROPERTIES                               *)
-(***************************************************************************)      
-TerminatesIfNotRegistered == 
-    [][\A i \in 1..NumRequesters:
-       IF \E msg \in Requesters[i].msgs : msg.type = "NOT_REGISTERED" 
-       THEN LET msg == CHOOSE m \in Requesters[i].msgs : m.type = "NOT_REGISTERED"
-            IN IF msg \notin Requesters[i]'.msgs
-               THEN Requesters[i]'.state = "TERMINATED"
-               ELSE TRUE
+(***************************************************************************) 
+TaskDeadlineUpdated == 
+    \E r \in 1..NumRequesters : 
+        LET after == IF Requesters[r]'.currentTask # NULL 
+                     THEN Requesters[r]'.tasks \union {Requesters[r]'.currentTask}
+                     ELSE Requesters[r]'.tasks
+            before == IF Requesters[r].currentTask # NULL 
+                      THEN Requesters[r].tasks \union {Requesters[r].currentTask}
+                      ELSE Requesters[r].tasks
+        IN \E t1 \in after : \A t2 \in before: 
+            t1.taskId = t2.taskId =>
+                \/ t1.Sd # t2.Sd
+                \/ t1.Pd # t2.Pd
+                \/ t1.Td # t2.Td 
+               
+MessageLost(i) ==
+    /\ \E m \in Requesters[i].msgs : m \notin Requesters[i]'.msgs
+    /\ LET removed == CHOOSE m \in Requesters[i].msgs : m \notin Requesters[i]'.msgs
+       IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i]'.msgs \ {removed}]
+       
+(***************************************************************************)
+(* LIVENESS: If a Requester progresses through/past the "SEND_KEY" state   *)
+(* which involves sending a keyshare to any Worker, then the Worker's      *)
+(* message queue must contain 1 new message. Additionally, the key-share   *)
+(* must be encrypted with the corresponding Worker's public key.           *)
+(***************************************************************************)
+RequesterSendsEncryptedKeyshares == 
+    [][\A i \in 1..NumRequesters: 
+       IF /\ Requesters[i].state = "SEND_KEY"
+          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state)
+             IN Requesters[i]'.state \in (match.end \ ({"TERMINATED"}))
+          /\ ~TaskDeadlineUpdated
+       THEN /\ \E j \in 1..NumWorkers : MessageAdded(Workers[j].msgs, Workers[j]'.msgs)
+            /\ LET w == CHOOSE j \in 1..NumWorkers : MessageAdded(Workers[j].msgs, Workers[j]'.msgs)
+               IN /\ \E m \in Workers'[w].msgs : m.type = "SEND_KEY"
+                  /\ LET msg == CHOOSE m \in Workers'[w].msgs : m.type = "SEND_KEY"
+                     IN /\ "keyshare" \in DOMAIN msg
+                        /\ IsEncrypted(msg.keyshare)
        ELSE TRUE
     ]_Requesters
-    
+
 ProducesMessagesToProgress == 
     [][\A i \in 1..NumRequesters:
        IF /\ Requesters[i].state \in 
@@ -158,18 +188,38 @@ ConsumesMessagesToProgress ==
        ELSE TRUE
     ]_Requesters
 
+(***************************************************************************)
+(* TERMINATION: If a Requester receives a message with from USC with type  *)
+(* "NOT_REGISTERED", it must terminate upon consuming the message and      *)
+(* updating its state.                                                     *)
+(***************************************************************************)
+RequesterTerminatesIfNotRegistered == 
+    [][\A i \in 1..NumRequesters:
+       IF /\ \E msg \in Requesters[i].msgs : msg.type = "NOT_REGISTERED"
+          /\ ~MessageLost(i) 
+       THEN LET msg == CHOOSE m \in Requesters[i].msgs : m.type = "NOT_REGISTERED"
+            IN IF msg \notin Requesters[i]'.msgs
+               THEN Requesters[i]'.state = "TERMINATED"
+               ELSE TRUE
+       ELSE TRUE
+    ]_Requesters
+
+(***************************************************************************)
+(*   TERMINATION: All Requesters terminate by conclusion of the process.   *)
+(***************************************************************************)
 Termination == 
     <>[](\A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED")
 
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
-    /\ TerminatesIfNotRegistered
+    /\ RequesterTerminatesIfNotRegistered
+    /\ RequesterSendsEncryptedKeyshares
 \*    /\ ProducesMessagesToProgress
     /\ ConsumesMessagesToProgress
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 12:58:58 CET 2024 by jungc
+\* Last modified Fri Mar 15 14:18:37 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

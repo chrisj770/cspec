@@ -226,10 +226,10 @@ ReceiveSubmitHash ==
              /\ SendWorkerMessage(msg.from, response @@ [type |-> "ACK"])
           \/ /\ tsc.state = "Canceled"
              /\ SendWorkerMessage(msg.from, response @@ [type |-> "CANCELED"])
-             /\ UNCHANGED <<TSCs>>
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
           \/ /\ tsc.state = "Completed"
              /\ SendWorkerMessage(msg.from, response @@ [type |-> "COMPLETED"])                   
-             /\ UNCHANGED <<TSCs>>              
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]            
     /\ UNCHANGED <<Requesters, USCs, NextUnique>>
 
 (***************************************************************************)
@@ -246,6 +246,7 @@ ReceiveQueryHashes_MessageFormat(msg) ==
 
 ReceiveQueryHashes_IsEnabled ==
     /\ TSCs.state = "WORKING" 
+    /\ TSCs.TaskPostDeadline
     
 ReceiveQueryHashes == 
     /\ ReceiveQueryHashes_IsEnabled
@@ -259,10 +260,10 @@ ReceiveQueryHashes ==
              /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
           \/ /\ tsc.state = "Canceled"
              /\ SendRequesterMessage(msg.from, response @@ [type |-> "CANCELED"])
-             /\ UNCHANGED <<TSCs>>
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
           \/ /\ tsc.state = "Completed"
              /\ SendRequesterMessage(msg.from, response @@ [type |-> "COMPLETED"])                   
-             /\ UNCHANGED <<TSCs>>
+             /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
     /\ UNCHANGED <<Workers, USCs, NextUnique>>
 
 (***************************************************************************)
@@ -283,6 +284,7 @@ ReceiveSubmitEval_MessageFormat(msg) ==
 
 ReceiveSubmitEval_IsEnabled == 
     /\ TSCs.state = "WORKING"
+    /\ TSCs.TaskPostDeadline
     
 SubmitEval(taskSet, msg, taskId, userType) == 
     LET newTaskSet == {[t EXCEPT 
@@ -316,11 +318,11 @@ ReceiveSubmitEval ==
              \/ /\ tsc.state = "Canceled"
                 /\ \/ SendWorkerMessage(msg.from, response @@ [type |-> "CANCELED"])
                    \/ SendRequesterMessage(msg.from, response @@ [type |-> "CANCELED"])
-                /\ UNCHANGED <<TSCs>>
+                /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
              \/ /\ tsc.state = "Completed"
                 /\ \/ SendWorkerMessage(msg.from, response @@ [type |-> "COMPLETED"])
                    \/ SendRequesterMessage(msg.from, response @@ [type |-> "COMPLETED"])                
-                /\ UNCHANGED <<TSCs>>                                    
+                /\ TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]                                   
           /\ IF USC!IsWorker(msg.from) 
              THEN UNCHANGED <<Requesters>>
              ELSE UNCHANGED <<Workers>>
@@ -343,5 +345,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:21:26 CET 2024 by jungc
+\* Last modified Fri Mar 15 14:24:44 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

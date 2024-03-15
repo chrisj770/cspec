@@ -179,11 +179,16 @@ TaskDeadlineUpdated(i) ==
         \/ t.Pd # u.Pd
         \/ t.Td # u.Pd 
         
+MessageLost(i) ==
+    /\ \E m \in Workers[i].msgs : m \notin Workers[i]'.msgs
+    /\ LET removed == CHOOSE m \in Workers[i].msgs : m \notin Workers[i]'.msgs
+       IN Workers' = [Workers EXCEPT ![i].msgs = Workers[i]'.msgs \ {removed}]
+        
 (***************************************************************************)
-(* PROGRESS: If a worker progresses past any state that involves sending a *)
+(* LIVENESS: If a worker progresses past any state that involves sending a *)
 (* message to TSC, then the TSC message queue must contain 1 new message.  *)
 (***************************************************************************)
-SendsMessageToTSC == 
+WorkerSendsMessagesToTSC == 
     [][\A i \in 1..NumWorkers:
        IF /\ Workers[i].state \in {"SEND_QUERY_TASKS", "SEND_CONFIRM_TASK", 
                                    "SEND_SUBMIT_HASH", "SEND_SUBMIT_EVAL"}
@@ -196,10 +201,10 @@ SendsMessageToTSC ==
     ]_Workers
     
 (***************************************************************************)
-(* PROGRESS: If a worker progresses past any state that involves sending a *)
+(* LIVENESS: If a worker progresses past any state that involves sending a *)
 (* message to USC, then the USC message queue must contain 1 new message.  *)
 (***************************************************************************)
-SendsMessageToUSC == 
+WorkerSendsMessagesToUSC == 
     [][\A i \in 1..NumWorkers:
        IF /\ Workers[i].state = "SEND_REGISTER"
           /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
@@ -211,12 +216,12 @@ SendsMessageToUSC ==
     ]_Workers
 
 (***************************************************************************)
-(* PROGRESS: If a worker progresses past any state that involves sending a *)
+(* LIVENESS: If a worker progresses past any state that involves sending a *)
 (* message to STORAGE, then the STORAGE message queue must contain 1 new   *)
 (* message. Additionally, if the message has type "SUBMIT_DATA", it must   *)
 (* contain encrypted data that cannot be viewed by external actors.        *)
 (***************************************************************************)
-SendsMessageToStorage == 
+WorkerSendsMessagesToStorage == 
     [][\A i \in 1..NumWorkers:
        IF /\ Workers[i].state \in {"SEND_QUERY_DATA", "SEND_SUBMIT_DATA"}
           /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
@@ -232,11 +237,11 @@ SendsMessageToStorage ==
     ]_Workers
 
 (***************************************************************************)
-(* PROGRESS: If a worker is processing a "currentTask" for which the       *)
+(* LIVENESS: If a worker is processing a "currentTask" for which the       *)
 (* Submission/Proving deadline has passed, the worker must proceed to the  *)
 (* next task (or re-query tasks) upon its next state update.               *)
 (***************************************************************************)
-TimeoutTaskIfDeadlinePassed == 
+WorkerTimeoutTaskIfDeadlinePassed == 
     [][\A i \in 1..NumWorkers:
        IF /\ Workers[i].currentTask # NULL
           \* Condition 1a: Submission deadline passed before submission of data hash
@@ -273,7 +278,7 @@ TimeoutTaskIfDeadlinePassed ==
 (* a public key for which ONLY the worker's private key can be used for    *)
 (* decryption.                                                             *)
 (***************************************************************************)
-ReceivesEncryptedKeyshares == 
+WorkerReceivesEncryptedKeyshares == 
     [][\A i \in 1..NumWorkers : 
        IF /\ Workers[i].currentTask # NULL
           /\ Workers[i].state = "RECV_SEND_KEY"
@@ -294,7 +299,7 @@ ReceivesEncryptedKeyshares ==
 (* must contain encrypted data for which the Requester's public key was    *)
 (* used for encryption, corresponding to the private key "share" received. *)
 (***************************************************************************)
-SendsEncryptedSensoryData ==
+WorkerSendsEncryptedSensoryData ==
     [][\A i \in 1..NumWorkers : 
        IF /\ Workers[i].currentTask # NULL
           /\ Workers[i].state = "SEND_SUBMIT_DATA"
@@ -315,9 +320,10 @@ SendsEncryptedSensoryData ==
 (* TERMINATION: If a worker receives a message with type "NOT_REGISTERED", *)
 (* it must terminate upon consuming the message and updating its state.    *)
 (***************************************************************************)
-TerminateIfNotRegistered == 
+WorkerTerminatesIfNotRegistered == 
     [][\A i \in 1..NumWorkers:
-       IF \E msg \in Workers[i].msgs : msg.type = "NOT_REGISTERED" 
+       IF /\ \E msg \in Workers[i].msgs : msg.type = "NOT_REGISTERED"
+          /\ ~MessageLost(i) 
        THEN LET msg == CHOOSE m \in Workers[i].msgs : m.type = "NOT_REGISTERED"
             IN IF msg \notin Workers[i]'.msgs
                THEN Workers[i]'.state = "TERMINATED"
@@ -334,16 +340,16 @@ Termination ==
 Properties == 
     /\ StateConsistency
     /\ StateTransitions
-    /\ SendsMessageToTSC
-    /\ SendsMessageToUSC
-    /\ SendsMessageToStorage
-    /\ TimeoutTaskIfDeadlinePassed
-    /\ ReceivesEncryptedKeyshares
-    /\ SendsEncryptedSensoryData
-    /\ TerminateIfNotRegistered
+    /\ WorkerSendsMessagesToTSC
+    /\ WorkerSendsMessagesToUSC
+    /\ WorkerSendsMessagesToStorage
+    /\ WorkerTimeoutTaskIfDeadlinePassed
+    /\ WorkerReceivesEncryptedKeyshares
+    /\ WorkerSendsEncryptedSensoryData
+    /\ WorkerTerminatesIfNotRegistered
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 12:58:52 CET 2024 by jungc
+\* Last modified Fri Mar 15 13:50:15 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

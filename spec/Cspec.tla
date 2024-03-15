@@ -95,6 +95,48 @@ TriggerNextTaskDeadline ==
                 !.currentTask = UpdateTask(Workers[i].currentTask, taskId, Sd, Pd, Td),
                 !.msgs = UpdateMessages(Workers[i].msgs, taskId, Sd, Pd, Td)]]
     /\ UNCHANGED <<USCs, Storage, NextUnique>>
+    
+(***************************************************************************)
+(*                          SIMULATED MESSAGE LOSS                         *)
+(***************************************************************************)
+WorkerMessageLoss == 
+    /\ \E i \in 1..NumWorkers : Cardinality(Workers[i].msgs) > 0
+    /\ LET i == CHOOSE j \in 1..NumWorkers : Cardinality(Workers[j].msgs) > 0
+           msg == CHOOSE m \in Workers[i].msgs : TRUE
+       IN Workers' = [Workers EXCEPT ![i].msgs = Workers[i].msgs \ {msg}]
+    /\ UNCHANGED <<Requesters, TSCs, USCs, Storage, NextUnique>>
+    
+RequesterMessageLoss == 
+    /\ \E i \in 1..NumRequesters : Cardinality(Requesters[i].msgs) > 0
+    /\ LET i == CHOOSE j \in 1..NumRequesters : Cardinality(Requesters[j].msgs) > 0
+           msg == CHOOSE m \in Requesters[i].msgs : TRUE
+       IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i].msgs \ {msg}]
+    /\ UNCHANGED <<Workers, TSCs, USCs, Storage, NextUnique>>
+    
+TSCMessageLoss == 
+    /\ Cardinality(TSCs.msgs) > 0
+    /\ LET msg == CHOOSE m \in TSCs.msgs : TRUE
+       IN TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \ {msg}]
+    /\ UNCHANGED <<Workers, Requesters, USCs, Storage, NextUnique>>
+
+USCMessageLoss == 
+    /\ Cardinality(USCs.msgs) > 0
+    /\ LET msg == CHOOSE m \in USCs.msgs : TRUE
+       IN USCs' = [USCs EXCEPT !.msgs = USCs.msgs \ {msg}]
+    /\ UNCHANGED <<Workers, Requesters, TSCs, Storage, NextUnique>>
+    
+StorageMessageLoss ==
+    /\ Cardinality(Storage.msgs) > 0
+    /\ LET msg == CHOOSE m \in Storage.msgs : TRUE
+       IN Storage' = [Storage EXCEPT !.msgs = Storage.msgs \ {msg}] 
+    /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, NextUnique>>
+    
+MessageLoss == 
+    \/ WorkerMessageLoss
+    \/ RequesterMessageLoss
+    \/ TSCMessageLoss
+    \/ USCMessageLoss
+    \/ StorageMessageLoss
 
 (***************************************************************************)
 (*                   STATE TRANSITION AND SPEC DEFINITIONS                 *)
@@ -111,10 +153,11 @@ Next == \/ /\ \/ Worker!Next
         \/ TriggerTaskPostDeadline
         \/ TriggerQueryTaskDeadline
         \/ TriggerNextTaskDeadline
+        \/ MessageLoss
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:13:23 CET 2024 by jungc
+\* Last modified Fri Mar 15 12:58:42 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:22 CET 2024 by jungc
