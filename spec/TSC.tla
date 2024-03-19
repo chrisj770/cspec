@@ -12,6 +12,10 @@ Init == TSCs = [state |-> "WORKING",
                 tasks |-> {},
      TaskPostDeadline |-> FALSE]  
 
+(***************************************************************************)
+(* AddFields: This operator is invoked upon adding a Requester task, for   *)
+(* which several default fields are added prior to being persisted by TSC. *)
+(***************************************************************************) 
 AddFields(struct, owner, taskId, address) == 
               struct @@ [taskId |-> taskId,
                         address |-> ToString(address),
@@ -26,7 +30,12 @@ AddFields(struct, owner, taskId, address) ==
                          hashes |-> {}, 
                requesterWeights |-> NULL,
                   workerWeights |-> {}]
-    
+
+(***************************************************************************)
+(* GetWorkerTask: This operator is invoked upon sending a list of tasks to *) 
+(* a registered Worker, for which each task is reformatted to contain ONLY *)
+(* information relevant to the Worker.                                     *)
+(***************************************************************************)     
 GetWorkerTask(t) == [Sd |-> t.Sd, 
                      Pd |-> t.Pd, 
                      Td |-> t.Td, 
@@ -36,7 +45,21 @@ GetWorkerTask(t) == [Sd |-> t.Sd,
         numParticipants |-> t.numParticipants, 
                category |-> t.category,
                   state |-> t.state] 
-                         
+
+(***************************************************************************)
+(* UpdateTasks: This operator is invoked under the following conditions:   *)
+(*                                                                         *) 
+(*  - Any posted task reaches the Submission Deadline (Sd), but the task   *) 
+(*     has failed to progress past the "Unavailable" state (i.e.           *) 
+(*     confirmation or submission not complete)                            *)
+(*                                                                         *)
+(*  - Any posted task reaches the Proving Deadling (Pd), but the task      *)
+(*     has failed to progress past the "QEvaluating" state (i.e.           *)
+(*     evaluation by Workers/Requesters not complete)                      *)
+(*                                                                         *) 
+(* In either circumstance, the corresponding task is automatically updated *)
+(* to state="Canceled" to prevent further processing.                      *)
+(***************************************************************************)        
 TaskExpired(t) == 
     \/ /\ t.Sd
        /\ t.state \in {"Pending", "Available", "Unavailable"}
@@ -51,7 +74,12 @@ UpdateTasks ==
 
 (***************************************************************************)
 (*                             RECV_POST_TASKS                             *)
-(***************************************************************************)                 
+(*                                                                         *)
+(* Receive "POST_TASKS" message from Requester containing a list of tasks  *) 
+(* to be posted. Upon receipt, add each entry to the TSC's list of tasks   *) 
+(* via the "PostTasks()" operator (which assigns unique "taskId"), then    *)
+(* send "ACK" message to Requester.                                        *)
+(***************************************************************************)            
 ReceivePostTasks_MessageFormat(msg) == 
     /\ \A f \in {"from", "type", "tasks"} : f \in DOMAIN msg
     /\ USC!IsRequester(msg.from)
@@ -85,6 +113,24 @@ ReceivePostTasks ==
 
 (***************************************************************************)
 (*                             RECV_QUERY_TASKS                            *)
+(*                                                                         *)
+(* Receive "QUERY_TASKS" message from Worker/Requester requesting a list   *) 
+(* of posted tasks. Upon receipt, perform an action based on the following *)
+(* conditions:                                                             *)
+(*                                                                         *)
+(*  - If the message was sent by a Worker, send "TASKS" message to         *)
+(*     Worker containing a list of all posted tasks (formatted via         *)
+(*     "GetWorkerTask()" to remove unnecessary information).               *)
+(*                                                                         *)
+(*  - If the message was sent by a Requester and all tasks for which       *)
+(*     the Requester is registered as an "owner" have state="Unavailable", *)
+(*     send "TASKS" message to Requester containing a list of all          *) 
+(*     relevant tasks.                                                     *)
+(*                                                                         *)
+(*  - Otherwise, ignore the message until either of the above conditions   *)
+(*     are fulfilled. (NOTE: This prevents Requesters from repeatedly      *)
+(*     sending "QUERY_TASKS" requests, which greatly expands state-space.) *)
+(*                                                                         *)
 (***************************************************************************)
 ReceiveQueryTasks_MessageFormat(msg) == 
     /\ \A f \in {"from", "type", "owner"} : f \in DOMAIN msg
@@ -127,6 +173,30 @@ ReceiveQueryTasks ==
 
 (***************************************************************************)
 (*                            RECV_CONFIRM_TASK                            *)
+(*                                                                         *)
+(* Receive "CONFIRM_TASK" message from Worker requesting to register as a  *)
+(* participant for any active task. Upon receipt, perform an action based  *) 
+(* on the following conditions:                                            *)
+(*                                                                         *)
+(*  - If the Worker is already a participant for the specified task,       *) 
+(*     send "CONFIRM_SUCCESS" message to Worker. Otherwise...              *)
+(*                                                                         *)
+(*  - If the specified task has state "Available" and the Worker does      *) 
+(*     NOT qualify to participate via the "checkQ" function, send          *)
+(*     "CONFIRM_FAIL" to Worker.                                           *)
+(*                                                                         *)
+(*  - If the specified task has state "Available" and the Worker           *)
+(*     qualifies to participate via the "checkQ" function, add the Worker  *)
+(*     to the task's list of participants and send "CONFIRM_SUCCESS"       *)
+(*     to the Worker. (If the required number of participants is           *)
+(*     reached, update the task state to "Unavailable".)                   *)
+(*                                                                         *)
+(*  - If the specified task has state "Unavailable" or "QEvaluating",      *)
+(*     send "CONFIRM_FAIL" message to Worker.                              *) 
+(*                                                                         *) 
+(*  - If the specified task has state "Canceled" or "Completed",           *)
+(*     send "CANCELED" or "COMPLETED" message to Worker, respectively.     *)
+(*                                                                         *)
 (***************************************************************************)
 CanParticipate(reputation, task) == 
     /\ task.state \notin {"Canceled", "Completed"}
@@ -187,6 +257,24 @@ ReceiveConfirmTask ==
 
 (***************************************************************************)
 (*                            RECV_SUBMIT_HASH                             *)
+(*                                                                         *) 
+(* Receive "SUBMIT_HASH" message from Worker containing a hash for         *)
+(* encrypted sensory data. Upon receipt, perform an action based on the    *) 
+(* following conditions:                                                   *)
+(*                                                                         *)
+(*  - If the specified task has state "Unavailable" and the Worker is      *)
+(*    registered as a participant, add the hash to the task's "hashes"     *) 
+(*    (if not already present) and send "ACK" message to Worker. (If       *)
+(*    the required number of hashes is reached, update the task state      *) 
+(*    to "QEvaluating".)                                                   *)
+(*                                                                         *)
+(*  - If the specified task has state "Canceled" or "Completed",           *)
+(*     send "CANCELED" or "COMPLETED" message to Worker, respectively.     *)
+(*                                                                         *)
+(*  - Otherwise, ignore the message until either of the above conditions   *)
+(*     are fulfilled. (NOTE: This allows out-of-sync workers to timeout    *) 
+(*     and progress onto further tasks.)                                   *)
+(*                                                                         *)
 (***************************************************************************)
 ReceiveSubmitHash_TaskFormat(t, msg) == 
     /\ msg.task = t.address
@@ -234,6 +322,22 @@ ReceiveSubmitHash ==
 
 (***************************************************************************)
 (*                            RECV_QUERY_HASHES                            *)
+(*                                                                         *) 
+(* Receive "QUERY_HASHES" message from Requester requesting submitted      *)
+(* hashes for a given task. Upon receipt, perform an action based on the   *) 
+(* following conditions:                                                   *)
+(*                                                                         *)
+(*  - If the specified task has state "QEvaluating" and the Requester is   *)
+(*    registered as the "owner", send "HASHES" message to Requester        *)
+(*    containing the list of submitted hashes.                             *)
+(*                                                                         *)
+(*  - If the specified task has state "Canceled" or "Completed",           *)
+(*     send "CANCELED" or "COMPLETED" message to Requester, respectively.  *)
+(*                                                                         *)
+(*  - Otherwise, ignore the message until either of the above conditions   *)
+(*     are fulfilled. (NOTE: This prevents Requesters from receiving       *)
+(*     hash lists before all Workers have submitted.)                      *)
+(*                                                                         *)
 (***************************************************************************)
 ReceiveQueryHashes_TaskFormat(t, msg) == 
     /\ msg.from = t.owner
@@ -268,6 +372,28 @@ ReceiveQueryHashes ==
 
 (***************************************************************************)
 (*                             RECV_SUBMIT_EVAL                            *)
+(*                                                                         *)
+(* Receive "SUBMIT_EVAL" message from Worker/Requester containing CATD     *) 
+(* evaluation results for a given task. Upon receipt, perform an action    *)
+(* based on the following conditions:                                      *)
+(*                                                                         *)
+(*  - If the message was sent by a participating Worker and the task       *)
+(*     state is "QEvaluating", store the evaluation results and send       *)
+(*     "ACK" to Worker. (If the required number of results is reached,     *)
+(*     set task state to "Completed".)                                     *)
+(*                                                                         *)
+(*  - If the message was sent by a Requester and the task state is         *)
+(*     "QEvaluating", store the evaluation results and send "ACK" to       *)
+(*     Requester.                                                          *)
+(*                                                                         *)
+(*  - If the specified task has state "Canceled" or "Completed",           *)
+(*     send "CANCELED" or "COMPLETED" message to Worker/Requester,         *)
+(*     respectively.                                                       *)
+(*                                                                         *)
+(*  - Otherwise, ignore the message until any of the above conditions      *)
+(*     are fulfilled. (NOTE: This allows out-of-sync parties to timeout    *)
+(*     and progress onto further tasks.)                                   *)
+(*                                                                         *)
 (***************************************************************************)
 ReceiveSubmitEval_TaskFormat(t, msg) ==
     /\ Cardinality(t.participants) = t.numParticipants
@@ -327,10 +453,17 @@ ReceiveSubmitEval ==
              THEN UNCHANGED <<Requesters>>
              ELSE UNCHANGED <<Workers>>
     /\ UNCHANGED <<USCs, NextUnique>>
-    
+
+(***************************************************************************)
+(* Terminating: Allows the TSC to remain working indefinitely, required by *)
+(* TLA+ for stuttering.                                                    *)
+(***************************************************************************)     
 Terminating == /\ TSCs.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
 
+(***************************************************************************)
+(*                            ACTION DEFINITIONS                           *)
+(***************************************************************************)
 Next == 
     \/ /\ \A t \in TSCs.tasks : ~TaskExpired(t)
        /\ \/ ReceivePostTasks
@@ -345,5 +478,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 15 14:24:44 CET 2024 by jungc
+\* Last modified Tue Mar 19 14:04:49 CET 2024 by jungc
 \* Created Thu Feb 22 14:17:45 CET 2024 by jungc

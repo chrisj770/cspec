@@ -10,6 +10,9 @@ Init == USCs = [msgs |-> {},
                state |-> "WORKING", 
 RegistrationDeadline |-> FALSE]
 
+(***************************************************************************)
+(*                            HELPER OPERATORS                             *)
+(***************************************************************************)
 IsWorker(public_key) == 
     \E usc \in USCs.users: /\ usc.pk = public_key
                            /\ usc.userType = "WORKER"
@@ -17,15 +20,29 @@ IsWorker(public_key) ==
 IsRequester(public_key) == 
     \E usc \in USCs.users: /\ usc.pk = public_key
                            /\ usc.userType = "REQUESTER"
-
-(***************************************************************************)
-(*                                REGISTER                                 *)
-(***************************************************************************)    
+    
 IsRegistered(key, type) == 
     \E user \in USCs.users : /\ user.pk.address = key
                              /\ user.reputation # NULL
                              /\ user.userType = type
-    
+
+(***************************************************************************)
+(*                                REGISTER                                 *)
+(*                                                                         *)
+(* Receive "REGISTER" message from Worker/Requester requesting to register *)
+(* as their corresponding user-type. Upon receipt, perform an action based *)
+(* on the following conditions:                                            *)
+(*                                                                         *) 
+(*  - If the "RegistrationDeadline" has not elapsed, generate a new        *) 
+(*     public/private key-pair and persist all relevant information,       *)
+(*     then send "REGISTERED" message to Worker/Requester containing       *) 
+(*     the address and key-pair.                                           *)
+(*                                                                         *)
+(*  - If the "RegistrationDeadline has elapsed, send "NOT_REGISTERED"      *)
+(*     message to Worker/Requester. (NOTE: This allows early termination   *)
+(*     caused by failure to register.)                                     *)
+(*                                                                         *)
+(***************************************************************************)    
 Register(key, msg) ==
     /\ ~IsRegistered(key, msg.userType)
     /\ LET newUser == [address |-> key, 
@@ -82,7 +99,8 @@ ReceiveRegister ==
     /\ UNCHANGED <<TSCs>> 
 
 (***************************************************************************)
-(*                             GET_REPUTATION                              *)
+(* GetReputation: This operator is invoked by the TSC to retrieve the      *)
+(* reputation of a registered Worker or Requester.                         *)
 (***************************************************************************) 
 GetReputation(user) == 
     LET usr == IF \/ IsRegistered(user.address, "WORKER")
@@ -91,15 +109,21 @@ GetReputation(user) ==
                ELSE NULL
     IN usr.reputation
     
+(***************************************************************************)
+(* Terminating: Allows the USC to remain working indefinitely, required by *)
+(* TLA+ for stuttering.                                                    *)
+(***************************************************************************)  
 Terminating == /\ USCs.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
-               
+
+(***************************************************************************)
+(*                            ACTION DEFINITIONS                           *)
+(***************************************************************************)               
 Next == 
     \/ ReceiveRegister
     \/ Terminating
 
-
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 12:42:14 CET 2024 by jungc
+\* Last modified Tue Mar 19 14:11:57 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

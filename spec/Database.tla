@@ -11,6 +11,10 @@ Init == Storage = [msgs |-> {},
 
 (***************************************************************************)
 (*                               SUBMIT_DATA                               *)
+(*                                                                         *) 
+(* Receive "SUBMIT_DATA" message from Worker containing encrypted sensory  *)
+(* data. Upon receipt, generate a new unique "hash" and persist the data,  *)
+(* then send "HASH" message to Worker containing the hash.                 *)
 (***************************************************************************) 
 ReceiveSubmitData_MessageFormat(msg) == 
     /\ msg.type = "SUBMIT_DATA" 
@@ -36,6 +40,10 @@ ReceiveSubmitData ==
 
 (***************************************************************************)
 (*                                QUERY_DATA                               *)
+(*                                                                         *)
+(* Receive "QUERY_DATA" message from Worker/Requester containing a list of *)
+(* hashes for which to request encrypted data. Upon receipt, send "DATA"   *)
+(* message with the corresponding data to the Worker/Requester.            *)
 (***************************************************************************) 
 ReceiveQueryData_MessageFormat(msg) == 
     /\ msg.type = "QUERY_DATA"
@@ -58,10 +66,17 @@ ReceiveQueryData ==
                  /\ UNCHANGED <<Workers>>
         /\ Storage' = [Storage EXCEPT !.msgs = Storage.msgs \ {msg}]      
     /\ UNCHANGED <<NextUnique>>                                        
-    
+
+(***************************************************************************)
+(* Terminating: Allows Storage to remain working indefinitely, required by *)
+(* TLA+ for stuttering.                                                    *)
+(***************************************************************************) 
 Terminating == /\ Storage.state = "WORKING"
                /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage, NextUnique>> 
 
+(***************************************************************************)
+(*                            ACTION DEFINITIONS                           *)
+(***************************************************************************)
 Next == 
     \/ ReceiveSubmitData
     \/ ReceiveQueryData
@@ -69,5 +84,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:20:37 CET 2024 by jungc
+\* Last modified Tue Mar 19 14:15:55 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc

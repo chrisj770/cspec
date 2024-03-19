@@ -26,11 +26,22 @@ Init ==
          submittedHashes |-> {},
            submittedData |-> {},
                  weights |-> {}]]
-                 
+
+(***************************************************************************)
+(* CATDAlgorithm: This operator is invoked during a Requester's "EVALUATE" *)
+(* stage to simulate evaluation of received data. (NOTE: An implementation *)
+(* of an actual truth-discovery algorithm is not included, as this remains *)
+(* out-of-scope for this specification.)                                   *)
+(***************************************************************************)                 
 CATDAlgorithm(i) == 
     {[address |-> w, weight |-> "placeholder"] :
      w \in Requesters[i].currentTask.participants}
-           
+
+(***************************************************************************)
+(* Terminate: This operator is invoked under a variety of circumstances,   *)
+(* upon which a Requester transitions to state "TERMINATED" and remains    *)
+(* idle indefinitely until all processing ceases.                          *) 
+(***************************************************************************)             
 Terminate(i, msg) == 
     Requesters' = [Requesters EXCEPT 
             ![i].msgs = IF msg # NULL 
@@ -44,6 +55,17 @@ Terminate(i, msg) ==
             ![i].submittedData = {}, 
             ![i].weights = {}]
 
+(***************************************************************************)
+(* NextTask: This operator is invoked when (1) a task is successfully      *)
+(* completed via the "RECV_SUBMIT_EVAL" state, (2) a message timeout has   *)
+(* occurred in any "RECV" state, or (3) a task timeout has occurred due to *)
+(* the Submission/Proving deadline elapsing before all necessary Requester *)
+(* actions have been completed.                                            *)
+(*                                                                         *)
+(* If 1+ confirmed tasks remain, set "currentTask" to the next confirmed   *)
+(* task (w/ lowest "taskId") and transition to state "SEND_KEY". If 0      *)
+(* confirmed tasks remain, terminate immediately.                          *)
+(***************************************************************************)
 GetNextTask(i) == 
     IF Cardinality(Requesters[i].tasks) = 0 THEN NULL 
     ELSE CHOOSE t \in Requesters[i].tasks : \A y \in Requesters[i].tasks : 
@@ -65,7 +87,10 @@ NextTask(i, msg) ==
            ![i].weights = {}]
 
 (***************************************************************************)
-(*                     SEND_REGISTER / RECV_REGISTER                       *)
+(*                             SEND_REGISTER                               *)
+(*                                                                         *)
+(* Send "REGISTER" message to USC to register as a Requester, then         *)
+(* transition immediately to "RECV_REGISTER" upon completion.              *)
 (***************************************************************************)
 SendRegister_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_REGISTER"
@@ -79,6 +104,14 @@ SendRegister(i) ==
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_REGISTER"]
     /\ UNCHANGED <<Workers, TSCs, Storage>>
 
+(***************************************************************************)
+(*                             RECV_REGISTER                               *)
+(*                                                                         *)
+(* Await "REGISTERED" message from USC with address and private/public     *)
+(* key-share, indicating that the Requester has been successfully          *)
+(* registered. Transition to "SEND_POST_TASKS" upon receipt of expected    *)
+(* message, or terminate early upon timeout or receipt of "NOT_REGISTERED".*)
+(***************************************************************************)
 ReceiveRegister_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = USCs.pk
@@ -109,7 +142,10 @@ ReceiveRegister_Timeout(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
 (***************************************************************************)
-(*                    SEND_POST_TASKS / RECV_POST_TASKS                    *)
+(*                             SEND_POST_TASKS                             *)
+(*                                                                         *)
+(* Send "POST_TASKS" message to TSC containing list of tasks to be posted, *)
+(* then transition immediately to "RECV_POST_TASKS" upon completion.       *)
 (***************************************************************************)
 SendPostTasks_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_POST_TASKS"
@@ -123,6 +159,13 @@ SendPostTasks(i) ==
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_POST_TASKS"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
 
+(***************************************************************************)
+(*                             RECV_POST_TASKS                             *)
+(*                                                                         *)
+(* Await "ACK" message from TSC indicating successful receipt of tasks.    *)
+(* Upon receiving the expected message, transition to "SEND_QUERY_TASKS".  *)
+(* If a timeout occurs, terminate immediately.                             *)
+(***************************************************************************)
 ReceivePostTasks_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
@@ -149,7 +192,11 @@ ReceivePostTasks_Timeout(i) ==
     /\ UNCHANGED <<Workers, USCs, TSCs, Storage>>    
     
 (***************************************************************************)
-(*                   SEND_QUERY_TASKS / RECV_QUERY_TASKS                   *)
+(*                            SEND_QUERY_TASKS                             *)
+(*                                                                         *)
+(* Send "QUERY_TASKS" message to TSC to retrive a list of posted tasks for *)
+(* which the Requester is registered as an "owner", then transition        *)
+(* immediately to "RECV_QUERY_TASKS" upon completion.                      *)
 (***************************************************************************)
 SendQueryTasks_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_QUERY_TASKS"
@@ -162,7 +209,31 @@ SendQueryTasks(i) ==
        IN /\ SendTSCMessage(request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_TASKS"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
-     
+    
+(***************************************************************************)
+(*                            RECV_QUERY_TASKS                             *)
+(*                                                                         *)
+(* Await "TASKS" message from TSC containing a list of posted tasks for    *)
+(* which the Requester is registed as an "owner". Upon receiving the       *)
+(* expected message, perform a state transition based on the following     *)
+(* conditions:                                                             *)
+(*                                                                         *)
+(*  - If the list is non-empty and all tasks have state="Unavailable",     *)
+(*     set the "currentTask" as the task with the lowest "taskId" and      *)
+(*     transition to "SEND_KEY".                                           *)
+(*                                                                         *)
+(*  - If the list is non-empty and all tasks have state "Canceled" or      *)
+(*     "Completed", terminate immediately.                                 *)
+(*                                                                         *)
+(*  - If the list is non-empty and any task has state "Available" or       *)
+(*     "QEvaluating", transition to "SEND_QUERY_TASKS" and repeat the      *)
+(*     query. (NOTE: This will not occur in-practice, as the TSC only      *)
+(*     sends "TASKS" to Requesters when all tasks are "Unavailable".)      *)
+(*                                                                         *)
+(*  - If the list is empty, terminate immediately.                         *)
+(*                                                                         *)
+(* Alternatively, if a timeout occurs, terminate immediately.              *)
+(***************************************************************************)     
 ReceiveQueryTasks_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
@@ -212,7 +283,12 @@ ReceiveQueryTasks_Timeout(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>> 
 
 (***************************************************************************)
-(*                           SEND_KEY / RECV_KEY                           *)
+(*                                SEND_KEY                                 *)
+(*                                                                         *)
+(* For the next unconfirmed Worker in the "currentTask", generate the      *)
+(* corresponding private key-share and send "SEND_KEY" message containing  *)
+(* key-share to Worker, then immediately transition to "RECV_KEY" upon     *)
+(* completion.                                                             *)
 (***************************************************************************)
 SendKey_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_KEY"
@@ -234,6 +310,17 @@ SendKey(i) ==
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_KEY"]
     /\ UNCHANGED <<TSCs, USCs, Storage>>
 
+(***************************************************************************)
+(*                                RECV_KEY                                 *)
+(*                                                                         *)
+(* Await "ACK" message from Worker indicating successful receipt of key-   *)
+(* share. Upon receipt, either (1) transition to "SEND_KEY" if 1+          *)
+(* unconfirmed Workers remain, or (2) transition to "SEND_QUERY_HASHES" if *)
+(* 0 unconfirmed Workers remain.                                           *)
+(*                                                                         *)
+(* If a timeout occurs, reset and transition to the next confirmed task    *)
+(* (or terminate immediately) via the logic defined in "NextTask".         *)
+(***************************************************************************)
 ReceiveKey_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
     /\ \E k \in Requesters[i].unconfirmedWorkers : k = msg.from     
@@ -268,7 +355,11 @@ ReceiveKey_Timeout(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
 
 (***************************************************************************)
-(*                  SEND_QUERY_HASHES / RECV_QUERY_HASHES                  *)
+(*                            SEND_QUERY_HASHES                            *)
+(*                                                                         *)
+(* Send "QUERY_HASHES" message to TSC to request a list of submitted       *)
+(* hashes associated with the current task, then transition immediately to *)
+(* "RECV_QUERY_HASHES" upon completion.                                    *)
 (***************************************************************************)
 SendQueryHashes_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_QUERY_HASHES"
@@ -284,7 +375,18 @@ SendQueryHashes(i) ==
        IN /\ SendTSCMessage(request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_HASHES"]
     /\ UNCHANGED <<Workers, USCs, Storage>>
-    
+
+(***************************************************************************)
+(*                            RECV_QUERY_HASHES                            *)
+(*                                                                         *)
+(* Await "HASHES" message from TSC containing a list of submitted hashes   *)
+(* associated with the current task. Upon receipt, store the hashes for    *) 
+(* later processing and transition to "SEND_QUERY_DATA".                   *)
+(*                                                                         *)
+(* Upon receiving a message of type "CANCELED"/"COMPLETED" (or a timeout)  *)
+(* reset and transition to the next confirmed task (or terminate           *)
+(* immediately) via the logic defined in "NextTask".                       *)
+(***************************************************************************)
 ReceiveQueryHashes_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
@@ -320,7 +422,11 @@ ReceiveQueryHashes_Timeout(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
 
 (***************************************************************************)
-(*                    SEND_QUERY_DATA / RECV_QUERY_DATA                    *)
+(*                             SEND_QUERY_DATA                             *)
+(*                                                                         *)
+(* Send "QUERY_DATA" message to Storage containing the list of submitted   *)
+(* hashes to query, then transition immediately to "RECV_QUERY_DATA" upon  *)
+(* completion.                                                             *)
 (***************************************************************************)
 SendQueryData_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_QUERY_DATA"
@@ -336,7 +442,18 @@ SendQueryData(i) ==
        IN /\ SendStorageMessage(request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_QUERY_DATA"]
     /\ UNCHANGED <<Workers, TSCs, USCs>> 
-    
+
+(***************************************************************************)
+(*                             RECV_QUERY_DATA                             *)
+(*                                                                         *)
+(* Await "DATA" message from storage containing encrypted sensory data     *)
+(* corresponding to all hashes requested in the "QUERY_DATA" message.      *)
+(* Upon receipt, decrypt all data via the Requester's private key, store   *)
+(* the data for later processing, then transition to "EVALUATE".           *)
+(*                                                                         *)
+(* If a timeout occurs, reset and transition to the next confirmed task    *)
+(* (or terminate immediately) via the logic defined in "NextTask".         *)
+(***************************************************************************)
 ReceiveQueryData_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type", "allData"} : f \in DOMAIN msg
     /\ msg.from = Storage.pk
@@ -369,6 +486,10 @@ ReceiveQueryData_Timeout(i) ==
 
 (***************************************************************************)
 (*                                EVALUATE                                 *)
+(*                                                                         *)
+(* Run CATD Algorithm on all sensory data received from Storage, then      *)
+(* store results for later processing and transition immediately to        *) 
+(* "SEND_SUBMIT_EVAL" upon completion.                                     *)
 (***************************************************************************)
 Evaluate_IsEnabled(i) == 
     /\ Requesters[i].state = "EVALUATE"
@@ -385,7 +506,10 @@ Evaluate(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
 (***************************************************************************)
-(*                   SEND_SUBMIT_EVAL / RECV_SUBMIT_EVAL                   *)
+(*                            SEND_SUBMIT_EVAL                             *)
+(*                                                                         *)
+(* Send "SUBMIT_EVAL" message to TSC containing evaluation results, then   *)
+(* transition immediately to "RECV_SUBMIT_EVAL" upon completion.           *)
 (***************************************************************************)
 SendSubmitEval_IsEnabled(i) == 
     /\ Requesters[i].state = "SEND_SUBMIT_EVAL"
@@ -405,6 +529,16 @@ SendSubmitEval(i) ==
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_SUBMIT_EVAL"]
     /\ UNCHANGED <<Workers, USCs, Storage>> 
 
+(***************************************************************************)
+(*                            RECV_SUBMIT_EVAL                             *)
+(*                                                                         *)
+(* Await "ACK" message from TSC indicating successful receipt of           *)
+(* evaluation results. Upon receipt, transition to "SEND_WEIGHTS".         *)        
+(*                                                                         *)
+(* Upon receiving a message of type "CANCELED"/"COMPLETED" (or a timeout)  *)
+(* reset and transition to the next confirmed task (or terminate           *)
+(* immediately) via the logic defined in "NextTask".                       *)
+(***************************************************************************)
 ReceiveSubmitEval_MessageFormat(i, msg) ==
     /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
     /\ msg.from = TSCs.pk
@@ -436,7 +570,11 @@ ReceiveSubmitEval_Timeout(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
 
 (***************************************************************************)
-(*                        SEND_WEIGHTS / RECV_WEIGHTS                      *)
+(*                               SEND_WEIGHTS                              *)
+(*                                                                         *)
+(* For next confirmed Worker, send "WEIGHTS" message containing evaluation *)
+(* results to Worker, then transition immediately to "RECV_WEIGHTS" upon   *)
+(* completion.                                                             *)
 (***************************************************************************)
 SendWeights_IsEnabled(i) ==
     /\ Requesters[i].state = "SEND_WEIGHTS"
@@ -454,7 +592,21 @@ SendWeights(i) ==
        IN /\ SendWorkerMessage(nextWorkerPk, request)
           /\ Requesters' = [Requesters EXCEPT ![i].state = "RECV_WEIGHTS"]
     /\ UNCHANGED <<TSCs, USCs, Storage>>
-    
+
+(***************************************************************************)
+(*                               SEND_WEIGHTS                              *)
+(*                                                                         *)
+(* Await "ACK" message from Worker indicating successful receipt of        *)
+(* evaluation results. Upon receipt, remove the Worker from the list of    *) 
+(* confirmed Workers to prevent from repeating the same request, then      *)
+(* either (1) transition to "SEND_WEIGHTS" if 1+ confirmed Workers remain, *)
+(* or (2) reset and transition to the next confirmed task (or terminate    *)
+(* immediately) via the logic defined in "NextTask" if 0 confirmed Workers *)
+(* remain.                                                                 *)
+(*                                                                         *)
+(* If a timeout occurs, reset and transition to the next confirmed task    *)
+(* (or terminate immediately) via the logic defined in "NextTask".         *)
+(***************************************************************************)
 ReceiveWeights_MessageFormat(i, msg) == 
     /\ \A f \in {"from", "type", "task"} : f \in DOMAIN msg
     /\ \E w \in Requesters[i].confirmedWorkers : w = msg.from
@@ -487,7 +639,12 @@ ReceiveWeights_Timeout(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>    
     
 (***************************************************************************)
-(*                  EXPECTED TIMEOUTS & EARLY TERMINATION                  *)
+(* EarlyTermination: This action is invoked when a Requester either (1)    *) 
+(* possesses no tasks to submit prior to Registration, or (2) has failed   *)
+(* to progress through the "RECV_QUERY_TASKS" state (i.e. receive a task   *)
+(* list for which all tasks have state="Unavailable") before its final     *) 
+(* task deadline elapses. In this case, the Requester terminates           *) 
+(* immediately w/o further processing.                                     *) 
 (***************************************************************************)    
 IsPastFinalTaskDeadline(i) == 
     \A j \in 1..Len(Requesters[i].unpostedTasks) : 
@@ -508,7 +665,24 @@ EarlyTermination(i) ==
     /\ EarlyTermination_IsEnabled(i) 
     /\ Terminate(i, NULL)
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>> 
-        
+
+(***************************************************************************)
+(* TaskTimeout: This action is invoked under the following conditions:     *)
+(*                                                                         *)
+(*  - A Requester is operating upon a task for which the Submission        *)
+(*     Deadline (Sd) has elapsed, but the Requester has failed to          *)
+(*     progress through the "SEND_KEY"/"RECV_KEY" states (i.e. key-shares  *)
+(*     not successfully distributed)                                       *)
+(*                                                                         *)
+(*  - A Requester is operating upon a task for which the Proving           *)
+(*     Deadline (Pd) has elapsed, but the Requester has failed to          *)
+(*     progress through the "RECV_WEIGHTS" state (i.e. evaluation results  *)
+(*     not successfully distributed)                                       *)
+(*                                                                         *)
+(* In either circumstance, the Requester resets and transitions to the     *)
+(* next confirmed task (or terminates immediately) via the logic defined   *)
+(* in "NextTask".                                                          *)
+(***************************************************************************)
 TaskTimeout_IsEnabled(i) == 
     /\ Requesters[i].currentTask # NULL
     \* Case 1: Keys not sent/ACKed before Submission deadline
@@ -533,17 +707,26 @@ TaskTimeout(i) ==
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
     
 (***************************************************************************)
-(*                  UNEXPECTED TIMEOUTS & RANDOM CRASHING                  *)
+(* RandomCrash: This action simulates a random malfunction, via which a    *)
+(* Requester terminates prior to completing its processing. Other parties  *)
+(* must properly handle the loss of a Requester under any circumstances.   *)  
 (***************************************************************************)
 RandomCrash(i) == 
     /\ Requesters[i].state # "TERMINATED"
     /\ Requesters' = [Requesters EXCEPT ![i].state = "TERMINATED"]
     /\ UNCHANGED <<Workers, TSCs, USCs, Storage>>
-    
+
+(***************************************************************************)
+(* Terminating: Allows all Requesters to remain terminated indefinitely,   *)
+(* required by TLA+ for stuttering.                                        *)
+(***************************************************************************)    
 Terminating == 
     /\ \A r \in 1..NumRequesters: Requesters[r].state = "TERMINATED"
     /\ UNCHANGED <<Workers, Requesters, TSCs, USCs, Storage>> 
-            
+
+(***************************************************************************)
+(*                            ACTION DEFINITIONS                           *)
+(***************************************************************************)             
 Next == 
     \/ \E requester \in 1..NumRequesters : 
         \/ SendRegister(requester)
@@ -578,5 +761,5 @@ Next ==
     
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:20:54 CET 2024 by jungc
+\* Last modified Tue Mar 19 12:55:28 CET 2024 by jungc
 \* Created Thu Feb 22 09:05:46 CET 2024 by jungc
