@@ -16,16 +16,16 @@ As established in the BRPC protocol by _Wu et al._, this system consists of the 
 In the following sections, we provide an in-depth overview of each category, as well as a visual diagram encapsulating the set of actions under all system conditions.
 
 ## Worker
-![<Worker State Flowchart>](/../state_diagrams/Worker.png)
+![<Worker State Flowchart>](/state_diagrams/Worker.png)
 
 ## Requester
-![<Requester State Flowchart>](/../state_diagrams/Requester.png)
+![<Requester State Flowchart>](/state_diagrams/Requester.png)
 
 ## Task Smart Contract (TSC)
-![<TSC State Flowchart>](/../state_diagrams/TSC.png)
+![<TSC State Flowchart>](/state_diagrams/TSC.png)
 
 ## User Smart Contract (USC)
-![<USC State Flowchart>](/../state_diagrams/USC.png)
+![<USC State Flowchart>](/state_diagrams/USC.png)
 
 ## Decentralized Storage
-![<Storage State Flowchart>](/../state_diagrams/Storage.png)
+![<Storage State Flowchart>](/state_diagrams/Storage.png)
