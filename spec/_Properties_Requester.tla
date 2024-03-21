@@ -108,7 +108,7 @@ StateTransitions ==
 (***************************************************************************)
 (*                             TYPE CONSISTENCY                            *)
 (***************************************************************************)    
-TypeOK == \A i \in 1..NumWorkers : LET r == Requesters[i] IN 
+TypeOK == \A i \in 1..NumRequesters : LET r == Requesters[i] IN 
     /\ r.state \in {s.start : s \in AllowedStateTransitions}
     /\ r.pk = NULL \/ KeyOK(r.pk) 
     /\ r.sk = NULL \/ KeyOK(r.sk) 
@@ -141,51 +141,141 @@ MessageLost(i) ==
        IN Requesters' = [Requesters EXCEPT ![i].msgs = Requesters[i]'.msgs \ {removed}]
        
 (***************************************************************************)
-(* LIVENESS: If a Requester progresses through/past the "SEND_KEY" state   *)
-(* which involves sending a keyshare to any Worker, then the Worker's      *)
-(* message queue must contain 1 new message. Additionally, the key-share   *)
-(* must be encrypted with the corresponding Worker's public key.           *)
+(* LIVENESS: If a Requester progresses through/past the "SEND_KEY" or      *)
+(* "SEND_WEIGHTS" states, which involve sending information to any Worker, *) 
+(* then the Worker's message queue must contain 1 new message. (NOTE:      *)
+(* Other properties verify that the necessary information is encrypted.)   *)
 (***************************************************************************)
-RequesterSendsEncryptedKeyshares == 
+RequesterSendsKeysharesAndWeightsToWorkers == 
     [][\A i \in 1..NumRequesters: 
-       IF /\ Requesters[i].state = "SEND_KEY"
-          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state)
-             IN Requesters[i]'.state \in (match.end \ ({"TERMINATED"}))
+       IF /\ \/ /\ Requesters[i].state = "SEND_KEY"
+                /\ Requesters'[i].state = "RECV_KEY" 
+             \/ /\ Requesters[i].state = "SEND_WEIGHTS"
+                /\ Requesters'[i].state = "RECV_WEIGHTS" 
           /\ ~TaskDeadlineUpdated
        THEN /\ \E j \in 1..NumWorkers : MessageAdded(Workers[j].msgs, Workers[j]'.msgs)
             /\ LET w == CHOOSE j \in 1..NumWorkers : MessageAdded(Workers[j].msgs, Workers[j]'.msgs)
-               IN /\ \E m \in Workers'[w].msgs : m.type = "SEND_KEY"
-                  /\ LET msg == CHOOSE m \in Workers'[w].msgs : m.type = "SEND_KEY"
-                     IN /\ "keyshare" \in DOMAIN msg
-                        /\ IsEncrypted(msg.keyshare)
-       ELSE TRUE
-    ]_Requesters
-
-ProducesMessagesToProgress == 
-    [][\A i \in 1..NumRequesters:
-       IF /\ Requesters[i].state \in 
-                {"SEND_REGISTER", "SEND_POST_TASKS", "SEND_QUERY_TASKS", 
-                 "SEND_KEY", "SEND_QUERY_HASHES", "SEND_QUERY_DATA", 
-                 "SEND_SUBMIT_EVAL", "SEND_WEIGHTS"}
-          /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state)
-             IN Requesters[i]'.state \in (match.end \ ({"TERMINATED", match.start}))
-       THEN \/ \E j \in 1..NumWorkers : Cardinality(Workers[j]'.msgs) = Cardinality(Workers[j].msgs) + 1
-            \/ Cardinality(TSCs'.msgs) = Cardinality(TSCs.msgs) + 1
-            \/ Cardinality(USCs'.msgs) = Cardinality(USCs.msgs) + 1
-            \/ Cardinality(Storage'.msgs) = Cardinality(Storage.msgs) + 1
+               IN \E m \in Workers'[w].msgs : 
+                    /\ m.type \in {"SEND_KEY", "WEIGHTS"}
+                    /\ m.from = Requesters[i].pk
        ELSE TRUE
     ]_Requesters
     
-ConsumesMessagesToProgress == 
+(***************************************************************************)
+(* LIVENESS: If a Requester progresses past any state that involves        *)
+(* sending a message to TSC, then the TSC message queue must contain 1     *)
+(* new message.                                                            *)
+(***************************************************************************)
+RequesterSendsMessagesToTSC == 
+    [][\A i \in 1..NumRequesters:
+       IF /\ Requesters[i].state \in {"SEND_POST_TASKS", "SEND_QUERY_TASKS", 
+                                      "SEND_QUERY_HASHES", "SEND_SUBMIT_EVAL"}
+          /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
+                                            x.start = Requesters[i].state
+             IN Requesters[i]'.state \in (allowedNextState.end \ 
+                ({"TERMINATED", "SEND_KEY", allowedNextState.start}))
+          /\ ~TaskDeadlineUpdated
+       THEN Cardinality(TSCs'.msgs) = Cardinality(TSCs.msgs) + 1
+       ELSE TRUE
+    ]_Requesters
+    
+(***************************************************************************)
+(* LIVENESS: If a Requester progresses past any state that involves        *)
+(* sending a message to USC, then the USC message queue must contain 1     *)
+(* new message.                                                            *)
+(***************************************************************************)
+RequesterSendsMessagesToUSC == 
+    [][\A i \in 1..NumRequesters:
+       IF /\ Requesters[i].state = "SEND_REGISTER"
+          /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
+                                            x.start = Requesters[i].state
+             IN Requesters[i]'.state \in (allowedNextState.end \ 
+                ({"TERMINATED", "SEND_KEY", allowedNextState.start}))
+          /\ ~TaskDeadlineUpdated                
+       THEN Cardinality(USCs'.msgs) = Cardinality(USCs.msgs) + 1
+       ELSE TRUE
+    ]_Requesters
+    
+(***************************************************************************)
+(* LIVENESS: If a Requester progresses past any state that involves        *)
+(* sending a message to STORAGE, then the STORAGE message queue must       *)
+(* contain 1 new message.                                                  *)
+(***************************************************************************)
+RequesterSendsMessagesToStorage == 
+    [][\A i \in 1..NumRequesters:
+       IF /\ Requesters[i].state = "SEND_QUERY_DATA"
+          /\ LET allowedNextState == CHOOSE x \in AllowedStateTransitions : 
+                                            x.start = Requesters[i].state
+             IN Requesters[i]'.state \in (allowedNextState.end \ 
+                ({"TERMINATED", "SEND_KEY", allowedNextState.start}))
+          /\ ~TaskDeadlineUpdated                
+       THEN /\ Cardinality(Storage'.msgs) = Cardinality(Storage.msgs) + 1
+       ELSE TRUE
+    ]_Workers
+
+(***************************************************************************)
+(* LIVENESS: If a Requester progresses past any state that involves        *)
+(* receiving a message from Worker/TSC/USC/Storage, then the Requester     *)
+(* must consume 1 message upon transitioning.                              *)
+(***************************************************************************)    
+RequesterConsumesMessagesToProgress == 
     [][\A i \in 1..NumRequesters:
        IF /\ Requesters[i].state \in
-                {"RECV_REGISTER",  "RECV_POST_TASKS","RECV_QUERY_TASKS", 
+                {"RECV_REGISTER", "RECV_POST_TASKS","RECV_QUERY_TASKS", 
                  "RECV_KEY", "RECV_QUERY_HASHES", "RECV_QUERY_DATA",
                  "RECV_SUBMIT_EVAL", "RECV_WEIGHTS"}
           /\ LET match == (CHOOSE x \in AllowedStateTransitions : x.start = Requesters[i].state)
              IN Requesters[i]'.state \in (match.end \ ({"TERMINATED", match.start}))
+          /\ ~TaskDeadlineUpdated             
        THEN Cardinality(Requesters[i]'.msgs) = Cardinality(Requesters[i].msgs) - 1
        ELSE TRUE
+    ]_Requesters
+
+(***************************************************************************)    
+(* SECURITY: If a Requester sends a private key-share to any Worker, then  *)
+(* the key-share must be encrypted with the Worker's private key.          *)
+(***************************************************************************)
+IsKeyshareMessage(m, from) == 
+    /\ m.type = "SEND_KEY" 
+    /\ m.from = from 
+    /\ "keyshare" \in DOMAIN m
+
+RequesterSendsEncryptedKeyshares == 
+    [][\A i \in 1..NumRequesters: 
+        IF /\ Requesters[i].state = "SEND_KEY" 
+           /\ Requesters'[i].state = "RECV_KEY" 
+        THEN /\ \E j \in 1..NumWorkers : \E m \in Workers'[j].msgs :
+                IsKeyshareMessage(m, Requesters[i].pk)
+             /\ LET wid == CHOOSE j \in 1..NumWorkers: \E m \in Workers'[j].msgs: 
+                                  IsKeyshareMessage(m, Requesters[i].pk)
+                    msg == CHOOSE m \in Workers'[wid].msgs : 
+                                  IsKeyshareMessage(m, Requesters[i].pk)
+                IN /\ IsEncrypted(msg.keyshare)
+                   /\ msg.keyshare.encryptionKey = Workers[wid].pk
+                   /\ msg.keyshare.encryptedData.address = Requesters[i].sk.address
+                   /\ msg.keyshare.encryptedData.type = "private_key"
+                   /\ msg \notin Workers[wid].msgs
+        ELSE TRUE
+     ]_Requesters
+
+(***************************************************************************)
+(* SECURITY: When a Requester receives sensory data from Storage, all data *)
+(* must be encrypted with a share of the Requester's public key.           *)
+(***************************************************************************)
+RequesterReceivesEncryptedSensoryData == 
+    [][\A i \in 1..NumRequesters: 
+        IF /\ Requesters[i].state = "RECV_QUERY_DATA"
+           /\ Requesters'[i].state = "EVALUATE"
+        THEN /\ \E m \in Requesters[i].msgs : m.type = "DATA" /\ m.from = Storage.pk
+             /\ LET msg == CHOOSE m \in Requesters[i].msgs : m.type = "DATA" /\ m.from = Storage.pk
+                IN /\ \A data \in msg.allData:
+                        /\ data.address \in Requesters[i].currentTask.participants
+                        /\ IsEncrypted(data.submission)
+                        /\ data.submission.encryptionKey.address = Requesters[i].sk.address 
+                        /\ data.submission.encryptionKey.type = "public_key" 
+                        /\ "share" \in DOMAIN data.submission.encryptionKey
+                   /\ msg \notin Requesters'[i].msgs
+        ELSE TRUE
     ]_Requesters
 
 (***************************************************************************)
@@ -214,12 +304,16 @@ Properties ==
     /\ StateConsistency
     /\ StateTransitions
     /\ RequesterTerminatesIfNotRegistered
+    /\ RequesterSendsKeysharesAndWeightsToWorkers
+    /\ RequesterSendsMessagesToTSC
+    /\ RequesterSendsMessagesToUSC
+    /\ RequesterSendsMessagesToStorage
+    /\ RequesterConsumesMessagesToProgress
     /\ RequesterSendsEncryptedKeyshares
-\*    /\ ProducesMessagesToProgress
-    /\ ConsumesMessagesToProgress
+    /\ RequesterReceivesEncryptedSensoryData
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 15 14:18:37 CET 2024 by jungc
+\* Last modified Thu Mar 21 09:28:30 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

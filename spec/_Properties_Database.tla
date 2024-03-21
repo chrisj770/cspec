@@ -35,18 +35,48 @@ TypeOK ==
 (***************************************************************************)
 (*                                PROPERTIES                               *)
 (***************************************************************************)
-AllSubmittedDataIsEncrypted == 
-    [][\A data \in Storage.data: IsEncrypted(data.submission)]_Storage
 
+(***************************************************************************)
+(* LIVENESS: If Storage receives a QUERY_DATA message from a Worker or     *)
+(* Requester, then all addresses specified in "hashes" must already exist  *)
+(* in the database.                                                        *)
+(***************************************************************************)
+StorageAllQueriedDataExists == 
+    []( 
+        (\E m \in Storage.msgs : m.type = "QUERY_DATA") => 
+        LET msg == CHOOSE ms \in Storage.msgs : ms.type = "QUERY_DATA" 
+        IN \A hash \in msg.hashes: \E d \in Storage.data : d.hash = hash
+      )
+
+(***************************************************************************)
+(* LIVENESS: Throughout processing, the quantity of stored data never      *)
+(* exceeds the expected maximum value: (#Workers x #Tasks)                 *)
+(***************************************************************************)
+StorageNeverExceedsMaximumSize == 
+    [](Cardinality(Storage.data) <= NumWorkers * Len(Tasks))
+    
+(***************************************************************************)
+(* SECURITY: All data received from Workers and persisted in the database  *)
+(* must be encrypted via public key-share.                                 *)
+(***************************************************************************)
+StorageAllSubmittedDataIsEncrypted == 
+    [](\A data \in Storage.data: IsEncrypted(data.submission))
+
+(***************************************************************************)
+(* TERMINATION: Storage remains in "WORKING" state indefinitely by         *)
+(* conclusion of the process.                                              *)
+(***************************************************************************)
 Termination == 
-    <>[](USCs.state = "WORKING")
+    <>[](Storage.state = "WORKING")
 
 Properties == 
-    /\ AllSubmittedDataIsEncrypted
+    /\ StorageAllQueriedDataExists
+    /\ StorageNeverExceedsMaximumSize
+    /\ StorageAllSubmittedDataIsEncrypted
     /\ Termination
 
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:20:02 CET 2024 by jungc
+\* Last modified Thu Mar 21 08:05:54 CET 2024 by jungc
 \* Created Wed Mar 13 10:14:11 CET 2024 by jungc

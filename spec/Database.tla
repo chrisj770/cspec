@@ -1,5 +1,5 @@
 ------------------------------ MODULE Database ------------------------------
-EXTENDS Common, TLC
+EXTENDS FiniteSets, Common, TLC
 
 (***************************************************************************)
 (*                              INITIALIZATION                             *)
@@ -84,5 +84,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Mar 19 14:15:55 CET 2024 by jungc
+\* Last modified Wed Mar 20 09:56:19 CET 2024 by jungc
 \* Created Sun Feb 25 10:53:35 CET 2024 by jungc

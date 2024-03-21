@@ -43,17 +43,31 @@ TypeOK ==
 (***************************************************************************)
 (*                                PROPERTIES                               *)
 (***************************************************************************)
+
+(***************************************************************************)
+(* LIVENESS: For all registered users, the assigned combination of address,*)
+(* public key, and "userType" must be unique with respect to all other     *)
+(* users (to prevent access conflicts or task-related malfunctions).       *)
+(***************************************************************************)    
 AllUsersUnique == 
-    [][\A a \in USCs.users : \A b \in USCs.users : 
-          a.address # b.address =>  
-          a.pk # b.pk /\ a.userType # b.userType
+    [][\A a \in USCs.users :
+        LET match == {x \in USCs.users : x.address = a.address /\ x.pk = a.pk}
+        IN Cardinality(match) = 1 
     ]_USCs
-        
+
+(***************************************************************************)
+(* LIVENESS: After the "RegistrationDeadline" elapses, USC does not permit *) 
+(* any additional registrations.                                           *)
+(***************************************************************************)            
 NoRegistrationsAfterDeadline == 
     [][USCs.RegistrationDeadline => 
        Cardinality(USCs'.users) = Cardinality(USCs.users)
     ]_USCs
 
+(***************************************************************************)
+(* TERMINATION: USC remains in "WORKING" state indefinitely by conclusion  *)
+(* of the process.                                                         *)
+(***************************************************************************)
 Termination == 
     <>[](USCs.state = "WORKING")
 
@@ -64,5 +78,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 12:56:14 CET 2024 by jungc
+\* Last modified Thu Mar 21 08:28:21 CET 2024 by jungc
 \* Created Wed Mar 13 10:00:37 CET 2024 by jungc

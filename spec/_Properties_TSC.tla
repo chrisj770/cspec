@@ -66,6 +66,115 @@ TSCAddsTasksWhenReceived ==
              IN Cardinality(TSCs'.tasks) = Cardinality(TSCs.tasks) + Len(msg.tasks)
         ELSE TRUE
     ]_TSCs
+    
+(***************************************************************************)
+(* LIVENESS: If TSC receives a CONFIRM_TASK message from a Worker for any  *) 
+(* "Available" task for which they are qualified (via checkQ) and space is *)
+(* available, then the Worker must be added as a participant.              *)
+(* Alternatively, if the Worker is unqualified, space is not available, or *)
+(* the task is not in state="Available", then the Worker must NOT be added *)
+(* as a participant.                                                       *)
+(***************************************************************************)
+TSCAcceptsQualifiedWorkers == 
+    [][
+        IF /\ \E m \in TSCs.msgs : m.type = "CONFIRM_TASK" 
+           /\ LET msg == CHOOSE m \in TSCs.msgs : m.type = "CONFIRM_TASK"
+              IN \E t \in TSCs.tasks : msg.task = t.address
+           /\ TSCs.TaskPostDeadline
+           /\ ~TaskPostDeadlineUpdated
+           /\ ~TaskDeadlineUpdated
+           /\ ~TaskStateUpdated
+           /\ ~MessageAdded(TSCs.msgs, TSCs'.msgs)
+           /\ ~MessageLost
+        THEN LET msg == CHOOSE m \in TSCs.msgs : m.type = "CONFIRM_TASK"
+                 worker == CHOOSE w \in USCs.users : msg.from = w.pk
+                 task == CHOOSE t \in TSCs.tasks : msg.task = t.address
+                 newTask == CHOOSE t \in TSCs'.tasks : msg.task = t.address
+             IN IF /\ task.state = "Available"
+                   /\ task.checkQ[worker.reputation]
+                   /\ Cardinality(task.participants) < task.numParticipants
+                THEN msg.from \in newTask.participants                 
+                ELSE msg.from \notin newTask.participants
+        ELSE TRUE
+    ]_TSCs
+    
+(***************************************************************************)
+(* LIVENESS: If TSC receives a SUBMIT_HASH message from a Worker, the hash *) 
+(* contained in the message must already exist as a data entry within      *)
+(* decentralized Storage.                                                  *)
+(***************************************************************************)
+TSCAllSubmittedHashesExist ==
+    [](
+        IF \E m \in TSCs.msgs : m.type = "SUBMIT_HASH" 
+        THEN LET msg == CHOOSE m \in TSCs.msgs : m.type = "SUBMIT_HASH"
+             IN \E data \in Storage.data :
+                /\ data.address = msg.from
+                /\ data.hash = msg.hash
+        ELSE TRUE 
+    )   
+
+(***************************************************************************)
+(* LIVENESS: If any task is updated with state="Unavailable", then the     *)
+(* required number of participants must have been successfully registered. *)
+(***************************************************************************)
+TSCUnavailableTaskConditions == 
+    [][
+        IF \E t1 \in TSCs.tasks : \A t2 \in TSCs'.tasks : 
+           t1.taskId = t2.taskId => /\ t1.state = "Available"  
+                                    /\ t2.state = "Unavailable"
+        THEN LET newTask == CHOOSE t2 \in TSCs'.tasks : \A t1 \in TSCs.tasks:
+                            t1.taskId = t2.taskId => /\ t1.state = "Available"
+                                                     /\ t2.state = "Unavailable"
+             IN Cardinality(newTask.participants) = newTask.numParticipants
+        ELSE TRUE
+    ]_TSCs
+
+(***************************************************************************)
+(* LIVENESS: If any task is updated with state="QEvaluating", then the     *)
+(* following conditions must be fulfilled:                                 *)
+(*                                                                         *)
+(*  (1) The required number of participants hav  been registered.          *) 
+(*  (2) The required number of hashes have been submitted (equal to the    *) 
+(*       number of participants).                                          *)
+(*                                                                         *)
+(***************************************************************************)
+TSCQEvaluatingTaskConditions == 
+    [][
+        IF \E t1 \in TSCs.tasks : \A t2 \in TSCs'.tasks : 
+           t1.taskId = t2.taskId => /\ t1.state = "Unavailable"  
+                                    /\ t2.state = "QEvaluating"
+        THEN LET newTask == CHOOSE t2 \in TSCs'.tasks : \A t1 \in TSCs.tasks:
+                            t1.taskId = t2.taskId => /\ t1.state = "Unavailable"
+                                                     /\ t2.state = "QEvaluating"
+             IN /\ Cardinality(newTask.participants) = newTask.numParticipants
+                /\ Cardinality(newTask.hashes) = newTask.numParticipants
+        ELSE TRUE
+    ]_TSCs
+
+(***************************************************************************)
+(* LIVENESS: If any task is updated with state="Completed", the following  *)
+(* conditions must be fulfilled:                                           *)
+(*                                                                         *)
+(*  (1) All requirements from "TSCQEvaluatingTaskConditions" must also     *)
+(*        have been fulfilled.                                             *)
+(*  (3) The Requester has submitted evaluation results.                    *)
+(*  (4) All participants have submitted evaluation results.                *)
+(*                                                                         *)
+(***************************************************************************)
+TSCCompletedTaskConditions == 
+    [][
+        IF \E t1 \in TSCs.tasks : \A t2 \in TSCs'.tasks : 
+           t1.taskId = t2.taskId => /\ t1.state = "QEvaluating"  
+                                    /\ t2.state = "Completed"
+        THEN LET newTask == CHOOSE t2 \in TSCs'.tasks : \A t1 \in TSCs.tasks:
+                            t1.taskId = t2.taskId => /\ t1.state = "QEvaluating"
+                                                     /\ t2.state = "Completed"
+             IN /\ Cardinality(newTask.participants) = newTask.numParticipants
+                /\ Cardinality(newTask.hashes) = newTask.numParticipants
+                /\ Cardinality(newTask.requesterWeights) = 1
+                /\ Cardinality(newTask.workerWeights) = newTask.numParticipants
+        ELSE TRUE
+    ]_TSCs
 
 (***************************************************************************)
 (* LIVENESS: When a task deadline elapses without the task reaching one of *)
@@ -103,11 +212,16 @@ Properties ==
     /\ StateConsistency
     /\ StateTransitions
     /\ TSCAddsTasksWhenReceived
+    /\ TSCAcceptsQualifiedWorkers
+    /\ TSCAllSubmittedHashesExist
+    /\ TSCUnavailableTaskConditions
+    /\ TSCQEvaluatingTaskConditions
+    /\ TSCCompletedTaskConditions
     /\ TSCCancelsTasksWhenExpired
     /\ TSCAllTasksFinishedOnTermination
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 15 13:50:13 CET 2024 by jungc
+\* Last modified Thu Mar 21 09:59:45 CET 2024 by jungc
 \* Created Sat Mar 02 14:14:04 CET 2024 by jungc

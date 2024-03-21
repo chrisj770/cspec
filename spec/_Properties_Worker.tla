@@ -72,8 +72,8 @@ AllowedStateTransitions == {
                "SEND_QUERY_TASKS",  \* Transitions upon task timeout with no remaining tasks
                "TERMINATED"}],      \* Transitions upon global timeout
       
-   [start |-> "RECV_WEIGHTS",       \* RECV_WEIGHTS: Await set of evaluated worker weights from REQUESTER
-      end |-> {"SEND_QUERY_DATA",   \* Transitions upon receiving "WEIGHTS" from REQUESTER with worker weights
+   [start |-> "RECV_WEIGHTS",       \* RECV_WEIGHTS: Await set of evaluated Worker weights from REQUESTER
+      end |-> {"SEND_QUERY_DATA",   \* Transitions upon receiving "WEIGHTS" from REQUESTER with Worker weights
                "RECV_SEND_KEY",     \* Transitions upon task timeout with remaining tasks
                "SEND_QUERY_TASKS",  \* Transitions upon task timeout with no remaining tasks
                "TERMINATED"}],      \* Transitions upon global timeout
@@ -98,8 +98,8 @@ AllowedStateTransitions == {
                "TERMINATED"}],      \* Transitions upon global timeout
       
    [start |-> "RECV_DATA",          \* RECV_DATA: Await sensory data from next WORKER, or respond to another WORKER by sending sensory data
-      end |-> {"REQUEST_DATA",      \* Transitions upon receiving "DATA" from WORKER with 1+ workers remaining
-               "VERIFY",            \* Transitions upon receiving "DATA" from WORKER with no workers remaining
+      end |-> {"REQUEST_DATA",      \* Transitions upon receiving "DATA" from WORKER with 1+ Workers remaining
+               "VERIFY",            \* Transitions upon receiving "DATA" from WORKER with no Workers remaining
                "RECV_SEND_KEY",     \* Transitions upon task timeout with remaining tasks
                "SEND_QUERY_TASKS",  \* Transitions upon task timeout with no remaining tasks
                "TERMINATED"}],      \* Transitions upon global timeout
@@ -185,7 +185,7 @@ MessageLost(i) ==
        IN Workers' = [Workers EXCEPT ![i].msgs = Workers[i]'.msgs \ {removed}]
         
 (***************************************************************************)
-(* LIVENESS: If a worker progresses past any state that involves sending a *)
+(* LIVENESS: If a Worker progresses past any state that involves sending a *)
 (* message to TSC, then the TSC message queue must contain 1 new message.  *)
 (***************************************************************************)
 WorkerSendsMessagesToTSC == 
@@ -201,7 +201,7 @@ WorkerSendsMessagesToTSC ==
     ]_Workers
     
 (***************************************************************************)
-(* LIVENESS: If a worker progresses past any state that involves sending a *)
+(* LIVENESS: If a Worker progresses past any state that involves sending a *)
 (* message to USC, then the USC message queue must contain 1 new message.  *)
 (***************************************************************************)
 WorkerSendsMessagesToUSC == 
@@ -216,7 +216,7 @@ WorkerSendsMessagesToUSC ==
     ]_Workers
 
 (***************************************************************************)
-(* LIVENESS: If a worker progresses past any state that involves sending a *)
+(* LIVENESS: If a Worker progresses past any state that involves sending a *)
 (* message to STORAGE, then the STORAGE message queue must contain 1 new   *)
 (* message. Additionally, if the message has type "SUBMIT_DATA", it must   *)
 (* contain encrypted data that cannot be viewed by external actors.        *)
@@ -236,9 +236,40 @@ WorkerSendsMessagesToStorage ==
        ELSE TRUE
     ]_Workers
 
+(***************************************************************************)    
+(* LIVENESS: If a Worker progresses to the VERIFY state, then both of the  *) 
+(* following conditions must be fulfilled:                                 *)
+(*                                                                         *) 
+(*  (1) Worker has received a quantity of sensory data equal to the        *)
+(*       total number of Workers in its "currentTask" (minus one),         *)
+(*       Additionally, the list "participantsRcvd" must be empty.          *)
+(*                                                                         *)
+(*  (2) All other Workers have either (a) received sensory data from       *)
+(*       the Worker, or (b) received a message containing sensory data     *)
+(*       from the Worker. Additionally, the list "participantsSent"        *) 
+(*       must be empty.                                                    *)
+(*                                                                         *)
 (***************************************************************************)
-(* LIVENESS: If a worker is processing a "currentTask" for which the       *)
-(* Submission/Proving deadline has passed, the worker must proceed to the  *)
+WorkerCompletesSensoryDataExchange == 
+    [][\A i \in 1..NumWorkers: 
+        IF /\ Workers[i].state \in {"REQUEST_DATA", "RECV_DATA"}
+           /\ Workers'[i].state = "VERIFY"
+        THEN /\ Cardinality(Workers[i].submittedData) = Workers[i].currentTask.numParticipants - 1
+             /\ Cardinality(Workers[i].participantsRcvd) = 0
+             /\ \A j \in 1..NumWorkers : Workers[j].pk \in Workers[i].currentTask.participants => 
+                \/ LET work == CHOOSE w \in Workers[i].submittedData : w.address = Workers[i].pk
+                   IN work \in Workers[j].submittedData
+                \/ /\ \E m \in Workers[j].msgs : 
+                        /\ m.from = Workers[i].pk
+                        /\ m.type = "DATA"
+                        /\ Workers[i].pk = m.data.address
+             /\ Cardinality(Workers[i].participantsSent) = 0
+        ELSE TRUE
+    ]_Workers
+
+(***************************************************************************)
+(* LIVENESS: If a Worker is processing a "currentTask" for which the       *)
+(* Submission/Proving deadline has passed, the Worker must proceed to the  *)
 (* next task (or re-query tasks) upon its next state update.               *)
 (***************************************************************************)
 WorkerTimeoutTaskIfDeadlinePassed == 
@@ -257,13 +288,13 @@ WorkerTimeoutTaskIfDeadlinePassed ==
           \* Condition 2: Worker state must be updated
           /\ Workers[i]'.state # Workers[i].state
        THEN 
-            \* Case 1: If worker has another task, the current task should be incremented
+            \* Case 1: If Worker has another task, the current task should be incremented
             \/ /\ Workers[i].confirmedTasks # {}
                /\ Workers[i]'.state = "RECV_SEND_KEY"
                /\ Workers[i]'.currentTask = CHOOSE x \in Workers[i].confirmedTasks :
                                             \A y \in Workers[i].confirmedTasks: 
                                             x.taskId # y.taskId => x.taskId < y.taskId
-            \* Case 2: If worker has no additional tasks, it should re-query TSC for tasks
+            \* Case 2: If Worker has no additional tasks, it should re-query TSC for tasks
             \/ /\ Workers[i].confirmedTasks = {}
                /\ Workers[i]'.state = "SEND_QUERY_TASKS"
                /\ Workers[i]'.currentTask = NULL
@@ -273,9 +304,9 @@ WorkerTimeoutTaskIfDeadlinePassed ==
     ]_Workers
     
 (***************************************************************************)
-(* SECURITY: During key distribution, if a worker receives a message from  *)
+(* SECURITY: During key distribution, if a Worker receives a message from  *)
 (* a Requester containing a keyshare, the contents must be encrypted with  *)
-(* a public key for which ONLY the worker's private key can be used for    *)
+(* a public key for which ONLY the Worker's private key can be used for    *)
 (* decryption.                                                             *)
 (***************************************************************************)
 WorkerReceivesEncryptedKeyshares == 
@@ -317,7 +348,7 @@ WorkerSendsEncryptedSensoryData ==
     ]_Workers
 
 (***************************************************************************)
-(* TERMINATION: If a worker receives a message with type "NOT_REGISTERED", *)
+(* TERMINATION: If a Worker receives a message with type "NOT_REGISTERED", *)
 (* it must terminate upon consuming the message and updating its state.    *)
 (***************************************************************************)
 WorkerTerminatesIfNotRegistered == 
@@ -332,7 +363,7 @@ WorkerTerminatesIfNotRegistered ==
     ]_Workers
 
 (***************************************************************************)
-(*  TERMINATION: All workers must terminate by conclusion of the process.  *)
+(*  TERMINATION: All Workers must terminate by conclusion of the process.  *)
 (***************************************************************************)
 Termination == 
     <>[](\A w \in 1..NumWorkers: Workers[w].state = "TERMINATED")
@@ -343,6 +374,7 @@ Properties ==
     /\ WorkerSendsMessagesToTSC
     /\ WorkerSendsMessagesToUSC
     /\ WorkerSendsMessagesToStorage
+    /\ WorkerCompletesSensoryDataExchange
     /\ WorkerTimeoutTaskIfDeadlinePassed
     /\ WorkerReceivesEncryptedKeyshares
     /\ WorkerSendsEncryptedSensoryData
@@ -351,5 +383,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Mar 15 13:50:15 CET 2024 by jungc
+\* Last modified Thu Mar 21 08:49:47 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc
