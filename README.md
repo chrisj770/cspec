@@ -12,7 +12,7 @@ In brief, C-SPEC attempts to generalize the BRPC protocol by offering a comprehe
 
 This repository is partitioned into the following sections:
 
-- [cspec/spec](cspec/spec) — Contains the TLA+ specification of C-SPEC.
-- [cspec/state_diagrams](cspec/state_diagrams) — Contains state diagrams for each actor developed in _draw.io_, saved as XML files.
+- [cspec/spec](/spec) — Contains the TLA+ specification of C-SPEC.
+- [cspec/state_diagrams](/state_diagrams) — Contains state diagrams for each actor developed in _draw.io_, saved as XML files.
 
 Note that, as new requirements are constantly being added, the contents of each partition may undergo re-organization or significant modification.
