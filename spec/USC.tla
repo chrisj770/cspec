@@ -34,13 +34,13 @@ IsRegistered(key, type) ==
 (* on the following conditions:                                            *)
 (*                                                                         *) 
 (*  - If the "RegistrationDeadline" has not elapsed, generate a new        *) 
-(*     public/private key-pair and persist all relevant information,       *)
-(*     then send "REGISTERED" message to Worker/Requester containing       *) 
-(*     the address and key-pair.                                           *)
+(*    public/private key-pair and persist all relevant information,        *)
+(*    then send "REGISTERED" message to Worker/Requester containing        *) 
+(*    the address and key-pair.                                            *)
 (*                                                                         *)
 (*  - If the "RegistrationDeadline has elapsed, send "NOT_REGISTERED"      *)
-(*     message to Worker/Requester. (NOTE: This allows early termination   *)
-(*     caused by failure to register.)                                     *)
+(*    message to Worker/Requester. (NOTE: This allows early termination    *)
+(*    caused by failure to register.)                                      *)
 (*                                                                         *)
 (***************************************************************************)    
 Register(key, msg) ==
@@ -125,5 +125,5 @@ Next ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Mar 19 14:11:57 CET 2024 by jungc
+\* Last modified Fri Mar 22 10:20:22 CET 2024 by jungc
 \* Created Thu Feb 22 13:06:41 CET 2024 by jungc

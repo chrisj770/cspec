@@ -230,6 +230,41 @@ RequesterConsumesMessagesToProgress ==
        THEN Cardinality(Requesters[i]'.msgs) = Cardinality(Requesters[i].msgs) - 1
        ELSE TRUE
     ]_Requesters
+    
+(***************************************************************************)
+(* LIVENESS: If a Requester is processing a "currentTask" for which the    *)
+(* Submission/Proving deadline has passed, the Requester must proceed to   *)
+(* next task (or terminate early) upon its next state update.              *)
+(***************************************************************************)
+RequesterTimeoutTaskIfDeadlinePassed == 
+    [][\A i \in 1..NumRequesters:
+       IF /\ Requesters[i].currentTask # NULL
+          \* Condition 1a: Submission deadline passed before successful key distribution
+          /\ \/ /\ Requesters[i].currentTask.Sd 
+                /\ Requesters[i].state \in {"SEND_KEY", "RECV_KEY"}
+             \* Condition 1b: Proving deadline passed before distribution of weights
+             \/ /\ Requesters[i].currentTask.Pd
+                /\ Requesters[i].state \in {"SEND_QUERY_HASHES", "RECV_QUERY_HASHES", 
+                                            "SEND_QUERY_DATA", "RECV_QUERY_DATA", 
+                                            "EVALUATE", "SEND_SUBMIT_EVAL", "RECV_SUBMIT_EVAL", 
+                                            "SEND_WEIGHTS", "RECV_WEIGHTS"}
+          \* Condition 2: Requester state must be updated
+          /\ Requesters[i]'.state # Requesters[i].state
+       THEN 
+            \* Case 1: If Requester has another task, the current task should be updated
+            \/ /\ Requesters[i].tasks # {}
+               /\ Requesters[i]'.state = "SEND_KEY"
+               /\ Requesters[i]'.currentTask = CHOOSE x \in Requesters[i].tasks :
+                                               \A y \in Requesters[i].tasks: 
+                                               x.taskId # y.taskId => x.taskId < y.taskId
+            \* Case 2: If Requester has no additional tasks, it should terminate early
+            \/ /\ Requesters[i].tasks = {}
+               /\ Requesters[i]'.state = "TERMINATED"
+               /\ Requesters[i]'.currentTask = NULL
+            \* Case 3: Requester can crash at any point
+            \/ Requesters[i]'.state = "TERMINATED"
+       ELSE TRUE
+    ]_Requesters
 
 (***************************************************************************)    
 (* SECURITY: If a Requester sends a private key-share to any Worker, then  *)
@@ -309,11 +344,12 @@ Properties ==
     /\ RequesterSendsMessagesToUSC
     /\ RequesterSendsMessagesToStorage
     /\ RequesterConsumesMessagesToProgress
+    /\ RequesterTimeoutTaskIfDeadlinePassed
     /\ RequesterSendsEncryptedKeyshares
     /\ RequesterReceivesEncryptedSensoryData
     /\ Termination
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 21 09:28:30 CET 2024 by jungc
+\* Last modified Fri Mar 22 10:53:00 CET 2024 by jungc
 \* Created Fri Mar 01 08:25:17 CET 2024 by jungc

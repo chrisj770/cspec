@@ -241,13 +241,13 @@ WorkerSendsMessagesToStorage ==
 (* following conditions must be fulfilled:                                 *)
 (*                                                                         *) 
 (*  (1) Worker has received a quantity of sensory data equal to the        *)
-(*       total number of Workers in its "currentTask" (minus one),         *)
-(*       Additionally, the list "participantsRcvd" must be empty.          *)
+(*      total number of Workers in its "currentTask" (minus one),          *)
+(*      Additionally, the list "participantsRcvd" must be empty.           *)
 (*                                                                         *)
 (*  (2) All other Workers have either (a) received sensory data from       *)
-(*       the Worker, or (b) received a message containing sensory data     *)
-(*       from the Worker. Additionally, the list "participantsSent"        *) 
-(*       must be empty.                                                    *)
+(*      the Worker, or (b) received a message containing sensory data      *)
+(*      from the Worker. Additionally, the list "participantsSent"         *) 
+(*      must be empty.                                                     *)
 (*                                                                         *)
 (***************************************************************************)
 WorkerCompletesSensoryDataExchange == 
@@ -383,5 +383,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 21 08:49:47 CET 2024 by jungc
+\* Last modified Fri Mar 22 10:16:48 CET 2024 by jungc
 \* Created Fri Mar 01 08:26:38 CET 2024 by jungc

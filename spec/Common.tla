@@ -16,14 +16,14 @@ VARIABLES
     Storage
 
 (***************************************************************************)
-(*                  INTER-PROCESS COMMUNICATION METHODS                    *)
+(*                        INTER-PROCESS COMMUNICATION                      *)
+(*                                                                         *) 
+(* The following operators represent a variety of message-related actions  *) 
+(* that are available to any actor within the system. In practice, these   *)
+(* would be replaced with HTTPS requests (or equivalent) sent to the       *)
+(* recipient's corresponding web address (with public-key/address, if      *) 
+(* the recipient is a smart contract).                                     *)
 (***************************************************************************)
-GetWorker(public_key) == 
-    CHOOSE i \in 1..NumWorkers : Workers[i].pk = public_key
-    
-GetRequester(public_key) == 
-    CHOOSE i \in 1..NumRequesters : Requesters[i].pk = public_key
-    
 SendTSCMessage(message) == 
     TSCs' = [TSCs EXCEPT !.msgs = TSCs.msgs \union {message}]
 
@@ -35,13 +35,13 @@ SendStorageMessage(message) ==
     
 SendRequesterMessage(recipient, message) == 
     /\ \E i \in 1..NumRequesters : Requesters[i].pk = recipient
-    /\ LET rid == GetRequester(recipient)
+    /\ LET rid == CHOOSE i \in 1..NumRequesters : Requesters[i].pk = recipient
        IN Requesters' = [Requesters EXCEPT ![rid].msgs = 
                             Requesters[rid].msgs \union {message}]
                             
 SendWorkerMessage(recipient, message) == 
     /\ \E i \in 1..NumWorkers : Workers[i].pk = recipient
-    /\ LET wid == GetWorker(recipient)
+    /\ LET wid == CHOOSE i \in 1..NumWorkers : Workers[i].pk = recipient
        IN Workers' = [Workers EXCEPT ![wid].msgs =
                              Workers[wid].msgs \union {message}]
   
@@ -56,41 +56,56 @@ SendWorkerBroadcast(recipientSet, message) ==
 
 (***************************************************************************)
 (*                        ENCRYPTION / DECRYPTION                          *)
-(***************************************************************************)
-
-(***************************************************************************)
-(* During registration, each user receive a pair of public/private         *)
-(* encryption keys, which are used to encrypt/decrypt all instances of     *)
-(* sensory data that gets exchanged with Database. These keys are          *)
-(* represented as structs of the following format:                         *)
+(*                                                                         *)
+(* NOTE: During registration, each user receives a pair of public/private  *)
+(* keys, which can be used to encrypt/decrypt (1) key-shares sent between  *)
+(* Workers/Requesters, and (2) sensory data exchanged between Workers and  *)
+(* the database. These keys are represented as basic structure with the    *)
+(* following format:                                                       *)
 (*                                                                         *)
 (* Key == [address |-> (encryptor_address),                                *)
 (*            type |-> ("public_key" or "private_key")                     *)
 (*           share |-> (Int)]                           <----OPTIONAL      *)
 (*                                                                         *)
-(* We also store each instance of encrypted data with the key used for     *)
-(* encryption, as formatted below:                                         *)
+(* Upon encryption of data, we store the result as a structure containing  *)
+(* (1) the encrypted data, and (2) the key utilized for encryption. This   *) 
+(* allows us to determine whether another actor possesses sufficient       *)
+(* information to decrypt the data (i.e. the corresponding private-key).   *)
+(* Encrypted data is represented as follows:                               *)
 (*                                                                         *)
 (* EncryptedData == [encryptedData |-> (data),                             *)
 (*                   encryptionKey |-> (key)]                              *)
 (*                                                                         *)
-(* Any user "N" can encrypt data using their public key "Npk", or some     *)
-(* share of the public key "Npk_1", "Npk_2", ..., "Npk_n". Once this       *)
-(* occurs, the data can only be accessed by decrypting it via the          *)
-(* corresponding private key "Nsk", or some share of the private key       *)
-(* "Nsk_1", "Nsk_2", ..., "Nsk_n". These operations are represented via    *)
-(* the methods below.                                                      *)
+(* Per the definition of a Paillier cryptosystem, any user "N" can encrypt *)
+(* data using a public key "Npk", or some share of the public key "Npk_1", *)
+(* "Npk_2", ..., "Npk_n". When this occurs, the data can only be decrypted *)
+(* via the corresponding private key "Nsk", or the corresponding share of  *)
+(* the private key "Nsk_1", "Nsk_2", ..., "Nsk_n", respectively. For more  *)
+(* information, refer to online descriptions of the Paillier cryptosystem. *)
+(***************************************************************************)
+
+(***************************************************************************)
+(* Encrypt: Represents encryption of data via key, outputs a structure     *)
+(* containing the encrypted data and information on the encryption key.    *)
 (***************************************************************************)
 Encrypt(data, encryptionKey) == 
     [encryptedData |-> data, encryptionKey |-> encryptionKey]
 
 (***************************************************************************)
-(* Three conditions must be fulfilled to decrypt data:                     *)
+(* Decrypt: Represents decryption of encrypted data via key, outputs       *) 
+(* unencrypted data if successful or NULL otherwise.                       *)
 (*                                                                         *)
-(*  (1) The encryption/decryption key must be from the same source         *)
-(*  (2) If encrypted via public, must decrypt via private and vice-versa   *)
-(*  (3) If a keyshare was used, the decryptor must have access to the      *)
-(*      same partial keyshare as that which was used to encrypt            *)
+(* The following conditions must be fulfilled to decrypt data:             *)
+(*                                                                         *)
+(*  (1) The encryption/decryption key must be from the same address.       *)
+(*                                                                         *)
+(*  (2) If encrypted via public key, the data must be decrypted via        *)
+(*      private key (and vice-versa).                                      *)
+(*                                                                         *)
+(*  (3) If a partial keyshare was used for encryption, the decryptor       *)
+(*      must have access to the corresponding share of the                 *) 
+(*      decryption key.                                                    *) 
+(*                                                                         *)
 (***************************************************************************)
 Decrypt(data, decryptionKey) == 
     IF /\ decryptionKey.address = data.encryptionKey.address
@@ -105,10 +120,14 @@ Decrypt(data, decryptionKey) ==
           ELSE TRUE
     THEN data.encryptedData ELSE NULL 
 
+(***************************************************************************)
+(* IsEncrypted: Checks whether data is encrypted, used primarily for       *) 
+(* property verification.                                                  *)
+(***************************************************************************) 
 IsEncrypted(data) == 
     \A f \in {"encryptedData", "encryptionKey"} : f \in DOMAIN data
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Mar 13 10:36:45 CET 2024 by jungc
+\* Last modified Fri Mar 22 10:15:58 CET 2024 by jungc
 \* Created Thu Feb 22 10:44:28 CET 2024 by jungc

@@ -135,7 +135,7 @@ TSCUnavailableTaskConditions ==
 (*                                                                         *)
 (*  (1) The required number of participants hav  been registered.          *) 
 (*  (2) The required number of hashes have been submitted (equal to the    *) 
-(*       number of participants).                                          *)
+(*      number of participants).                                           *)
 (*                                                                         *)
 (***************************************************************************)
 TSCQEvaluatingTaskConditions == 
@@ -156,7 +156,7 @@ TSCQEvaluatingTaskConditions ==
 (* conditions must be fulfilled:                                           *)
 (*                                                                         *)
 (*  (1) All requirements from "TSCQEvaluatingTaskConditions" must also     *)
-(*        have been fulfilled.                                             *)
+(*      have been fulfilled.                                               *)
 (*  (3) The Requester has submitted evaluation results.                    *)
 (*  (4) All participants have submitted evaluation results.                *)
 (*                                                                         *)
@@ -223,5 +223,5 @@ Properties ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Mar 21 09:59:45 CET 2024 by jungc
+\* Last modified Fri Mar 22 10:16:26 CET 2024 by jungc
 \* Created Sat Mar 02 14:14:04 CET 2024 by jungc
